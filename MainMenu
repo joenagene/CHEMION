@@ -1,0 +1,152 @@
+
+import javax.swing.*;
+import java.awt.*;
+
+public class MainMenu extends JFrame {
+    private final CardLayout layout = new CardLayout();
+    private final JPanel screens = new JPanel(layout);
+
+    private static final Color BG = new Color(16, 20, 35);
+    private static final Color PANEL = new Color(31, 37, 59);
+    private static final Color ACCENT = new Color(156, 109, 231);
+
+    public Main() {
+        super("CHEMION: The Last Cure");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(960, 600);
+        setMinimumSize(new Dimension(700, 500));
+        setLocationRelativeTo(null);
+
+        screens.add(createMainMenu(), "menu");
+        screens.add(createCharacterScreen(), "characters");
+        screens.add(createInstructions(), "instructions");
+
+        add(screens);
+        layout.show(screens, "menu");
+    }
+
+    private JPanel createMainMenu() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(BG);
+
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridx = 0;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.insets = new Insets(8, 10, 8, 10);
+
+        JLabel title = new JLabel("CHEMION", SwingConstants.CENTER);
+        title.setForeground(Color.WHITE);
+        title.setFont(new Font("SansSerif", Font.BOLD, 64));
+        c.gridy = 0;
+        panel.add(title, c);
+
+        JLabel subtitle = new JLabel("THE LAST CURE", SwingConstants.CENTER);
+        subtitle.setForeground(new Color(227, 157, 185));
+        subtitle.setFont(new Font("SansSerif", Font.BOLD, 23));
+        c.gridy = 1;
+        c.insets = new Insets(0, 10, 32, 10);
+        panel.add(subtitle, c);
+
+        c.insets = new Insets(7, 10, 7, 10);
+
+        addMenuButton(panel, c, 2, "NEW GAME",
+                () -> layout.show(screens, "characters"));
+
+        addMenuButton(panel, c, 3, "CONTINUE GAME",
+                () -> JOptionPane.showMessageDialog(this,
+                        "No saved game is available yet.",
+                        "Continue Game",
+                        JOptionPane.INFORMATION_MESSAGE));
+
+        addMenuButton(panel, c, 4, "CHARACTER SELECTION",
+                () -> layout.show(screens, "characters"));
+
+        addMenuButton(panel, c, 5, "GAME INSTRUCTIONS",
+                () -> layout.show(screens, "instructions"));
+
+        addMenuButton(panel, c, 6, "EXIT GAME", () -> {
+            int answer = JOptionPane.showConfirmDialog(
+                    this, "Exit CHEMION?", "Exit Game",
+                    JOptionPane.YES_NO_OPTION);
+
+            if (answer == JOptionPane.YES_OPTION) {
+                dispose();
+            }
+        });
+
+        return panel;
+    }
+
+    private void addMenuButton(
+            JPanel panel, GridBagConstraints c,
+            int row, String text, Runnable action) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("SansSerif", Font.BOLD, 17));
+        button.setPreferredSize(new Dimension(330, 48));
+        button.setForeground(Color.WHITE);
+        button.setBackground(PANEL);
+        button.setFocusPainted(false);
+        button.setBorder(
+                BorderFactory.createLineBorder(ACCENT, 2));
+        button.setCursor(
+                Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.addActionListener(e -> action.run());
+
+        c.gridy = row;
+        panel.add(button, c);
+    }
+
+    private JPanel createCharacterScreen() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+
+        JLabel label = new JLabel(
+                "CHARACTER SELECTION - Coming Next",
+                SwingConstants.CENTER);
+        label.setForeground(Color.WHITE);
+        label.setFont(new Font("SansSerif", Font.BOLD, 25));
+        panel.add(label, BorderLayout.CENTER);
+
+        JButton back = new JButton("BACK TO MAIN MENU");
+        back.addActionListener(
+                e -> layout.show(screens, "menu"));
+        panel.add(back, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private JPanel createInstructions() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+
+        JTextArea text = new JTextArea(
+                "CHEMION: THE LAST CURE\n\n" +
+                        "Play as a scientist investigating a fictional outbreak.\n\n" +
+                        "OBJECTIVES:\n" +
+                        "- Explore contaminated locations.\n" +
+                        "- Collect elements and laboratory materials.\n" +
+                        "- Analyze zombie weaknesses.\n" +
+                        "- Craft fictional treatment potions.\n" +
+                        "- Complete missions and unlock five levels.");
+
+        text.setEditable(false);
+        text.setBackground(BG);
+        text.setForeground(Color.WHITE);
+        text.setFont(new Font("SansSerif", Font.PLAIN, 18));
+        text.setMargin(new Insets(30, 35, 30, 30));
+
+        panel.add(new JScrollPane(text), BorderLayout.CENTER);
+
+        JButton back = new JButton("BACK TO MAIN MENU");
+        back.addActionListener(
+                e -> layout.show(screens, "menu"));
+        panel.add(back, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(
+                () -> new Main().setVisible(true));
+    }
+}
