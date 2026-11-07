@@ -25,7 +25,7 @@ public class Main extends JFrame {
         setLocationRelativeTo(null);
 
         screens.add(createMainMenu(), "MainMenu");
-        screens.add(new CharacterSelection(), "CharacterSelection");
+        screens.add(new CharacterSelection(this), "CharacterSelection");
         screens.add(new GameInstructions(this), "Instructions");
 
         add(screens);
