@@ -1,5 +1,5 @@
 
-import java.awt.Graphics;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -7,53 +7,161 @@ import javax.imageio.ImageIO;
 
 public class SpriteAnimation {
 
-    private final BufferedImage[] frames;
+    private BufferedImage spriteSheet;
+
+    private int frameWidth;
+    private int frameHeight;
+    private int frameCount;
+
     private int currentFrame = 0;
-    private long lastUpdate = 0;
 
-    public SpriteAnimation(String path,
-                           int frameWidth,
-                           int frameHeight,
-                           int frameCount) throws IOException {
+    private long lastFrameTime;
+    private final long frameDelay = 120;
 
-        BufferedImage sheet = ImageIO.read(new File(path));
+    private boolean finished = false;
 
-        if (sheet == null) {
-            throw new IOException("Cannot read: " + path);
+    public SpriteAnimation(
+            String filePath,
+            int frameWidth,
+            int frameHeight,
+            int frameCount
+    ) throws IOException {
+
+        spriteSheet = ImageIO.read(new File(filePath));
+
+        if (spriteSheet == null) {
+            throw new IOException("Invalid image: " + filePath);
         }
 
-        if (frameWidth <= 0 || frameHeight <= 0
-                || frameCount <= 0
-                || sheet.getWidth() < frameWidth * frameCount
-                || sheet.getHeight() < frameHeight) {
-            throw new IOException("Invalid sprite dimensions: " + path);
-        }
+        this.frameWidth = frameWidth;
+        this.frameHeight = frameHeight;
+        this.frameCount = frameCount;
 
-        frames = new BufferedImage[frameCount];
+        if (spriteSheet.getWidth() < frameWidth * frameCount ||
+            spriteSheet.getHeight() < frameHeight) {
 
-        for (int i = 0; i < frameCount; i++) {
-            frames[i] = sheet.getSubimage(
-                i * frameWidth, 0, frameWidth, frameHeight
+            throw new IOException(
+                "Sprite sheet dimensions are incorrect: " + filePath
             );
+        }
+
+        lastFrameTime = System.currentTimeMillis();
+    }
+
+    // Looping animation for walking
+    public void update() {
+
+        long currentTime = System.currentTimeMillis();
+
+        if (currentTime - lastFrameTime >= frameDelay) {
+
+            currentFrame++;
+
+            if (currentFrame >= frameCount) {
+                currentFrame = 0;
+            }
+
+            lastFrameTime = currentTime;
         }
     }
 
-    public void update() {
-        long now = System.currentTimeMillis();
+    // Play animation once for hurt
+    public void updateOnce() {
 
-        if (now - lastUpdate >= 150) {
-            currentFrame = (currentFrame + 1) % frames.length;
-            lastUpdate = now;
+        if (finished) {
+            return;
         }
+
+        long currentTime = System.currentTimeMillis();
+
+        if (currentTime - lastFrameTime >= frameDelay) {
+
+            if (currentFrame < frameCount - 1) {
+                currentFrame++;
+            } else {
+                finished = true;
+            }
+
+            lastFrameTime = currentTime;
+        }
+    }
+
+    public boolean isFinished() {
+        return finished;
+    }
+
+    public int getCurrentFrame() {
+        return currentFrame;
     }
 
     public void reset() {
+
         currentFrame = 0;
+        finished = false;
+
+        lastFrameTime = System.currentTimeMillis();
     }
 
-    public void draw(Graphics g, int x, int y,
-                     int width, int height) {
-        g.drawImage(frames[currentFrame],
-                    x, y, width, height, null);
+    // Draw normal sprite
+    public void draw(
+            Graphics g,
+            int x,
+            int y,
+            int width,
+            int height
+    ) {
+
+        draw(g, x, y, width, height, false);
+    }
+
+    // Draw sprite with optional red flash
+    public void draw(
+            Graphics g,
+            int x,
+            int y,
+            int width,
+            int height,
+            boolean redFlash
+    ) {
+
+        int sourceX = currentFrame * frameWidth;
+
+        BufferedImage frame = spriteSheet.getSubimage(
+            sourceX,
+            0,
+            frameWidth,
+            frameHeight
+        );
+
+        if (redFlash) {
+
+            BufferedImage tinted = new BufferedImage(
+                frameWidth,
+                frameHeight,
+                BufferedImage.TYPE_INT_ARGB
+            );
+
+            Graphics2D tg = tinted.createGraphics();
+
+            tg.drawImage(frame, 0, 0, null);
+
+            tg.setComposite(
+                AlphaComposite.SrcAtop.derive(0.65f)
+            );
+
+            tg.setColor(Color.RED);
+            tg.fillRect(0, 0, frameWidth, frameHeight);
+
+            tg.dispose();
+
+            frame = tinted;
+        }
+
+        g.drawImage(
+            frame,
+            x, y,
+            width, height,
+            null
+        );
     }
 }
