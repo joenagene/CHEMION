@@ -25,8 +25,14 @@ public class Main extends JFrame {
         setLocationRelativeTo(null);
 
         screens.add(createMainMenu(), "MainMenu");
-        screens.add(new CharacterSelection(this), "CharacterSelection");
-        screens.add(new GameInstructions(this), "Instructions");
+        screens.add(
+            new CharacterSelection(this),
+            "CharacterSelection"
+        );
+        screens.add(
+            new GameInstructions(this),
+            "Instructions"
+        );
 
         add(screens);
         showScreen("MainMenu");
@@ -37,10 +43,12 @@ public class Main extends JFrame {
         if (menuMusic != null) return;
 
         try {
-            File musicFile = new File("assets/audio/main_menu.wav");
+            File file = new File(
+                "assets/audio/main_menu.wav"
+            );
 
             try (AudioInputStream audio =
-                    AudioSystem.getAudioInputStream(musicFile)) {
+                    AudioSystem.getAudioInputStream(file)) {
 
                 menuMusic = AudioSystem.getClip();
                 menuMusic.open(audio);
@@ -48,7 +56,9 @@ public class Main extends JFrame {
             }
 
         } catch (Exception e) {
-            System.out.println("Music error: " + e.getMessage());
+            System.out.println(
+                "Music error: " + e.getMessage()
+            );
 
             if (menuMusic != null) {
                 menuMusic.close();
@@ -65,30 +75,37 @@ public class Main extends JFrame {
         }
     }
 
-    // PIXEL BUTTON WITH PURPLE HOVER GLOW
+    // PIXEL BUTTON
     private static class PixelButton extends JButton {
 
         private static final int GLOW_MARGIN = 3;
 
-        private final Color normalColor = new Color(37, 32, 57);
-        private final Color hoverColor = new Color(76, 42, 106);
-        private final Color borderColor = new Color(167, 101, 221);
+        private final Color normalColor =
+            new Color(37, 32, 57);
 
-        public PixelButton(String text) {
+        private final Color hoverColor =
+            new Color(76, 42, 106);
+
+        private final Color borderColor =
+            new Color(167, 101, 221);
+
+        PixelButton(String text) {
             super(text);
 
-            setFont(new Font("Press Start 2P", Font.PLAIN, 11));
-            setForeground(borderColor);
+            setFont(new Font(
+                "Press Start 2P", Font.PLAIN, 11
+            ));
 
+            setForeground(borderColor);
             setContentAreaFilled(false);
             setBorderPainted(false);
             setFocusPainted(false);
             setOpaque(false);
             setRolloverEnabled(true);
 
-            setCursor(
-                Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            );
+            setCursor(Cursor.getPredefinedCursor(
+                Cursor.HAND_CURSOR
+            ));
 
             setMargin(new Insets(0, 0, 0, 0));
         }
@@ -97,25 +114,13 @@ public class Main extends JFrame {
                 int x, int y, int w, int h, int cut) {
 
             int[] xs = {
-                x + cut,
-                x + w - cut,
-                x + w,
-                x + w,
-                x + w - cut,
-                x + cut,
-                x,
-                x
+                x + cut, x + w - cut, x + w, x + w,
+                x + w - cut, x + cut, x, x
             };
 
             int[] ys = {
-                y,
-                y,
-                y + cut,
-                y + h - cut,
-                y + h,
-                y + h,
-                y + h - cut,
-                y + cut
+                y, y, y + cut, y + h - cut,
+                y + h, y + h, y + h - cut, y + cut
             };
 
             return new Polygon(xs, ys, 8);
@@ -123,7 +128,6 @@ public class Main extends JFrame {
 
         @Override
         protected void paintComponent(Graphics g) {
-
             Graphics2D g2 = (Graphics2D) g.create();
 
             g2.setRenderingHint(
@@ -142,11 +146,10 @@ public class Main extends JFrame {
             }
 
             int cut = Math.min(12, Math.max(3, h / 5));
-
             Polygon shape = createShape(x, y, w, h, cut);
+
             boolean hover = getModel().isRollover();
 
-            // Purple outer glow
             if (hover) {
                 for (int i = 10; i >= 1; i--) {
                     g2.setStroke(new BasicStroke(
@@ -163,16 +166,14 @@ public class Main extends JFrame {
                 }
             }
 
-            // Button fill
             g2.setColor(
                 hover ? hoverColor : normalColor
             );
             g2.fillPolygon(shape);
 
-            // Main border
-            g2.setStroke(
-                new BasicStroke(hover ? 3f : 2f)
-            );
+            g2.setStroke(new BasicStroke(
+                hover ? 3f : 2f
+            ));
 
             g2.setColor(
                 hover
@@ -182,13 +183,10 @@ public class Main extends JFrame {
 
             g2.drawPolygon(shape);
 
-            // Inner border
             if (w > 16 && h > 16) {
                 Polygon inner = createShape(
-                    x + 4,
-                    y + 4,
-                    w - 8,
-                    h - 8,
+                    x + 4, y + 4,
+                    w - 8, h - 8,
                     Math.max(2, cut - 3)
                 );
 
@@ -204,13 +202,11 @@ public class Main extends JFrame {
             }
 
             g2.dispose();
-
             super.paintComponent(g);
         }
 
         @Override
         public boolean contains(int x, int y) {
-
             int margin = GLOW_MARGIN;
             int w = getWidth() - margin * 2 - 1;
             int h = getHeight() - margin * 2 - 1;
@@ -240,7 +236,6 @@ public class Main extends JFrame {
         };
 
         Runnable[] actions = {
-
             () -> showScreen("CharacterSelection"),
 
             () -> JOptionPane.showMessageDialog(
@@ -270,9 +265,7 @@ public class Main extends JFrame {
         JButton[] buttons = new JButton[labels.length];
 
         for (int i = 0; i < labels.length; i++) {
-
             JButton button = new PixelButton(labels[i]);
-
             final int index = i;
 
             button.addActionListener(
@@ -283,17 +276,16 @@ public class Main extends JFrame {
             panel.add(button);
         }
 
-        // BUTTON SIZE AND POSITION
         panel.addComponentListener(new ComponentAdapter() {
-
             @Override
             public void componentResized(ComponentEvent e) {
-
                 int width = panel.getWidth();
                 int height = panel.getHeight();
 
-                double scaleX = width / (double) IMAGE_WIDTH;
-                double scaleY = height / (double) IMAGE_HEIGHT;
+                double scaleX =
+                    width / (double) IMAGE_WIDTH;
+                double scaleY =
+                    height / (double) IMAGE_HEIGHT;
 
                 int buttonWidth = (int) (410 * scaleX);
                 int buttonHeight = (int) (78 * scaleY);
@@ -303,16 +295,12 @@ public class Main extends JFrame {
                 int startY = (int) (445 * scaleY);
 
                 for (int i = 0; i < buttons.length; i++) {
-
                     int x = centerX - buttonWidth / 2;
-                    int y = startY
-                        + i * (buttonHeight + spacing);
+                    int y = startY +
+                        i * (buttonHeight + spacing);
 
                     buttons[i].setBounds(
-                        x,
-                        y,
-                        buttonWidth,
-                        buttonHeight
+                        x, y, buttonWidth, buttonHeight
                     );
                 }
             }
@@ -321,20 +309,21 @@ public class Main extends JFrame {
         return panel;
     }
 
-    // BACKGROUND IMAGE
+    // MAIN MENU BACKGROUND
     private static class BackgroundPanel extends JPanel {
 
         private BufferedImage background;
 
-        public BackgroundPanel() {
+        BackgroundPanel() {
             try {
                 background = ImageIO.read(
-                    new File("assets/backgrounds/main_menu.png")
+                    new File(
+                        "assets/backgrounds/main_menu.png"
+                    )
                 );
-
             } catch (Exception e) {
                 System.out.println(
-                    "Background not found: " + e.getMessage()
+                    "Background error: " + e.getMessage()
                 );
             }
 
@@ -348,23 +337,23 @@ public class Main extends JFrame {
             if (background != null) {
                 g.drawImage(
                     background,
-                    0,
-                    0,
-                    getWidth(),
-                    getHeight(),
+                    0, 0,
+                    getWidth(), getHeight(),
                     null
                 );
             }
         }
     }
 
-    // SCREEN NAVIGATION AND MUSIC CONTROL
+    // SCREEN NAVIGATION
     public void showScreen(String screenName) {
 
         cardLayout.show(screens, screenName);
 
         if (screenName.equals("Instructions")) {
-            for (Component component : screens.getComponents()) {
+            for (Component component :
+                    screens.getComponents()) {
+
                 if (component instanceof GameInstructions) {
                     ((GameInstructions) component).startTyping();
                 }
@@ -372,14 +361,84 @@ public class Main extends JFrame {
         }
 
         if (screenName.equals("MainMenu")) {
-
             if (menuMusic == null) {
                 playMenuMusic();
             }
-
         } else {
             stopMenuMusic();
         }
+    }
+
+    // START GAME -> TEMPORARY LEVEL 1
+    public void startNewGame(int characterIndex) {
+
+        String[] scientists = {
+            "DR. SEBASTIAN",
+            "DR. DUTCH",
+            "DR. NICOLE",
+            "DR. GENE",
+            "DR. ELENA"
+        };
+
+        if (characterIndex < 0 ||
+            characterIndex >= scientists.length) {
+            return;
+        }
+
+        JPanel level1 = new JPanel(new GridBagLayout());
+        level1.setBackground(new Color(16, 12, 32));
+
+        JPanel content = new JPanel();
+        content.setOpaque(false);
+        content.setLayout(
+            new BoxLayout(content, BoxLayout.Y_AXIS)
+        );
+
+        JLabel title = new JLabel(
+            "LEVEL 1 - ABANDONED TOWN"
+        );
+
+        title.setForeground(new Color(235, 150, 255));
+        title.setFont(new Font(
+            "Press Start 2P", Font.BOLD, 17
+        ));
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel scientist = new JLabel(
+            "Selected: " + scientists[characterIndex]
+        );
+
+        scientist.setForeground(new Color(235, 212, 255));
+        scientist.setFont(new Font(
+            "Press Start 2P", Font.PLAIN, 12
+        ));
+        scientist.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel note = new JLabel(
+            "Battlefield is under development"
+        );
+        note.setForeground(Color.LIGHT_GRAY);
+        note.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JButton back = new JButton("BACK TO MAIN MENU");
+        back.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        back.addActionListener(
+            e -> showScreen("MainMenu")
+        );
+
+        content.add(title);
+        content.add(Box.createVerticalStrut(24));
+        content.add(scientist);
+        content.add(Box.createVerticalStrut(20));
+        content.add(note);
+        content.add(Box.createVerticalStrut(28));
+        content.add(back);
+
+        level1.add(content);
+
+        screens.add(level1, "Level1");
+        showScreen("Level1");
     }
 
     public void addScreen(String name, JPanel panel) {
@@ -387,7 +446,6 @@ public class Main extends JFrame {
     }
 
     public static void main(String[] args) {
-
         SwingUtilities.invokeLater(() -> {
             Main game = new Main();
             game.setVisible(true);

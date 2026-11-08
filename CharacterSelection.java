@@ -23,24 +23,16 @@ public class CharacterSelection extends JPanel {
     private Clip characterMusic;
 
     private final String[] names = {
-        "DR. SEBASTIAN",
-        "DR. DUTCH",
-        "DR. NICOLE",
-        "DR. GENE",
-        "DR. ELENA"
+        "DR. SEBASTIAN", "DR. DUTCH", "DR. NICOLE",
+        "DR. GENE", "DR. ELENA"
     };
 
     private final String[] roles = {
-        "HEAD SCIENTIST",
-        "CHEMIST",
-        "RESEARCH SCIENTIST",
-        "BIOLOGIST",
-        "MEDICAL SCIENTIST"
+        "HEAD SCIENTIST", "CHEMIST", "RESEARCH SCIENTIST",
+        "BIOLOGIST", "MEDICAL SCIENTIST"
     };
 
     private final String[][] profiles = {
-
-        // DR. SEBASTIAN
         {
             "Leadership and Strategic Planning",
             "Intelligent, decisive, and calm under pressure",
@@ -48,8 +40,6 @@ public class CharacterSelection extends JPanel {
             "Serious, disciplined, and protective",
             "We don't have the luxury of failure. Not when humanity is counting on us."
         },
-
-        // DR. DUTCH
         {
             "Chemical Formulation and Experimentation",
             "Creative, resourceful, and quick-thinking",
@@ -57,8 +47,6 @@ public class CharacterSelection extends JPanel {
             "Playful, sarcastic, and adventurous",
             "Relax. The last explosion was completely intentional. Mostly."
         },
-
-        // DR. NICOLE
         {
             "Scientific Investigation and Data Analysis",
             "Observant, analytical, and detail-oriented",
@@ -66,8 +54,6 @@ public class CharacterSelection extends JPanel {
             "Curious, clever, and quietly competitive",
             "Something doesn't add up... and I won't stop until I find out what."
         },
-
-        // DR. GENE
         {
             "Mutation Analysis and Biological Research",
             "Patient, adaptable, and highly knowledgeable",
@@ -75,8 +61,6 @@ public class CharacterSelection extends JPanel {
             "Reserved, thoughtful, and mysterious",
             "Nature doesn't make mistakes. It makes things we don't understand."
         },
-
-        // DR. ELENA
         {
             "Medical Treatment and Cure Development",
             "Determined, resilient, and highly skilled",
@@ -87,42 +71,38 @@ public class CharacterSelection extends JPanel {
     };
 
     private final String[] gifFiles = {
-        "dr. sebastian.gif",
-        "dr. dutch.gif",
-        "dr. nicole.gif",
-        "dr. gene.gif",
-        "dr. elena.gif"
+        "dr. sebastian.gif", "dr. dutch.gif",
+        "dr. nicole.gif", "dr. gene.gif", "dr. elena.gif"
     };
 
     private final ImageIcon[] gifs = new ImageIcon[5];
-
-    private final CharacterPreview mainPortrait =
-        new CharacterPreview();
-
-    private final PortraitButton[] portraitButtons =
-        new PortraitButton[5];
+    private final CharacterPreview mainPortrait = new CharacterPreview();
+    private final PortraitButton[] portraitButtons = new PortraitButton[5];
 
     private final JPanel descriptionPanel;
-
     private final JLabel nameLabel = new JLabel();
     private final JLabel roleLabel = new JLabel();
-
-    // JTextPane allows different font sizes in one profile.
     private final JTextPane profileArea = new JTextPane();
 
-    private final PixelButton backButton =
-        new PixelButton("BACK");
-
-    private final PixelButton selectButton =
-        new PixelButton("SELECT");
-
-    private final PixelButton nextButton =
-        new PixelButton("NEXT");
+    private final PixelButton backButton = new PixelButton("BACK");
+    private final PixelButton selectButton = new PixelButton("SELECT");
+    private final PixelButton nextButton = new PixelButton("NEXT");
+    private final PixelButton startGameButton = new PixelButton("START GAME");
 
     private int currentCharacter = 0;
     private int selectedCharacter = -1;
 
     private final Timer animationTimer;
+
+    // DARK OVERLAY
+    private final JPanel startOverlay = new JPanel(null) {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            g.setColor(new Color(5, 3, 16, 215));
+            g.fillRect(0, 0, getWidth(), getHeight());
+        }
+    };
 
     public CharacterSelection() {
         this(null);
@@ -141,10 +121,8 @@ public class CharacterSelection extends JPanel {
         mainPortrait.setOpaque(false);
         add(mainPortrait);
 
-        // CHARACTER THUMBNAILS
         for (int i = 0; i < 5; i++) {
             final int index = i;
-
             PortraitButton button = new PortraitButton();
             button.setCharacterIcon(gifs[i]);
 
@@ -157,42 +135,24 @@ public class CharacterSelection extends JPanel {
             add(button);
         }
 
-        // DESCRIPTION PANEL
         descriptionPanel = new JPanel(null) {
-
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
-
                 Graphics2D g2 = (Graphics2D) g.create();
-
                 g2.setRenderingHint(
                     RenderingHints.KEY_ANTIALIASING,
                     RenderingHints.VALUE_ANTIALIAS_ON
                 );
-
                 int w = getWidth();
                 int h = getHeight();
-
                 g2.setColor(new Color(27, 17, 52, 235));
-
-                g2.fillRoundRect(
-                    3, 3,
-                    Math.max(0, w - 6),
-                    Math.max(0, h - 6),
-                    18, 18
-                );
-
+                g2.fillRoundRect(3, 3, Math.max(0, w - 6),
+                    Math.max(0, h - 6), 18, 18);
                 g2.setColor(BORDER);
                 g2.setStroke(new BasicStroke(3f));
-
-                g2.drawRoundRect(
-                    3, 3,
-                    Math.max(0, w - 6),
-                    Math.max(0, h - 6),
-                    18, 18
-                );
-
+                g2.drawRoundRect(3, 3, Math.max(0, w - 6),
+                    Math.max(0, h - 6), 18, 18);
                 g2.dispose();
             }
         };
@@ -200,58 +160,80 @@ public class CharacterSelection extends JPanel {
         descriptionPanel.setOpaque(false);
 
         nameLabel.setForeground(TEXT);
-        descriptionPanel.add(nameLabel);
-
         roleLabel.setForeground(GLOW);
+
+        descriptionPanel.add(nameLabel);
         descriptionPanel.add(roleLabel);
 
-        // PROFILE TEXT PANE
         profileArea.setEditable(false);
         profileArea.setOpaque(false);
         profileArea.setFocusable(false);
         profileArea.setForeground(TEXT);
         profileArea.setBorder(null);
         profileArea.setMargin(new Insets(0, 0, 0, 0));
+        profileArea.setFont(gameFont(15));
 
         descriptionPanel.add(profileArea);
         add(descriptionPanel);
 
-        // BACK BUTTON
         backButton.addActionListener(e -> goBack());
 
-        // NEXT BUTTON
         nextButton.addActionListener(e -> {
             currentCharacter = (currentCharacter + 1) % 5;
             updateCharacter();
         });
 
-        // SELECT BUTTON
         selectButton.addActionListener(e -> {
             selectedCharacter = currentCharacter;
             updateCharacter();
+            showStartOverlay();
         });
 
         add(backButton);
         add(selectButton);
         add(nextButton);
 
-        // ESCAPE KEY
-        getInputMap(
-            JComponent.WHEN_IN_FOCUSED_WINDOW
-        ).put(
-            KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
-            "back"
+        // OVERLAY AND START BUTTON
+        startOverlay.setOpaque(false);
+        startOverlay.setVisible(false);
+
+        startOverlay.add(startGameButton);
+
+        startOverlay.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                hideStartOverlay();
+            }
+        });
+
+        startGameButton.addActionListener(e -> {
+            if (selectedCharacter < 0) return;
+
+            hideStartOverlay();
+            stopCharacterMusic();
+
+            if (main != null) {
+                main.startNewGame(selectedCharacter);
+            }
+        });
+
+        add(startOverlay);
+        setComponentZOrder(startOverlay, 0);
+
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+            KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "back"
         );
 
-        getActionMap().put(
-            "back",
-            new AbstractAction() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
+        getActionMap().put("back", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (startOverlay.isVisible()) {
+                    hideStartOverlay();
+                } else {
                     goBack();
                 }
             }
-        );
+        });
 
         addComponentListener(new ComponentAdapter() {
             @Override
@@ -262,21 +244,48 @@ public class CharacterSelection extends JPanel {
 
         animationTimer = new Timer(80, e -> {
             if (!isShowing()) return;
-
             mainPortrait.repaint();
-
             for (PortraitButton button : portraitButtons) {
-                if (button != null) {
-                    button.repaint();
-                }
+                if (button != null) button.repaint();
             }
         });
 
         updateCharacter();
     }
 
-    // BACK TO MAIN MENU
+    private void showStartOverlay() {
+        startOverlay.setBounds(0, 0, getWidth(), getHeight());
+        updateStartButtonLayout();
+        startOverlay.setVisible(true);
+        startOverlay.repaint();
+    }
+
+    private void hideStartOverlay() {
+        startOverlay.setVisible(false);
+    }
+
+    private void updateStartButtonLayout() {
+        int w = getWidth();
+        int h = getHeight();
+        double sx = w / (double) REF_WIDTH;
+        double sy = h / (double) REF_HEIGHT;
+        double scale = Math.min(sx, sy);
+
+        int buttonW = Math.max(180, (int) (520 * sx));
+        int buttonH = Math.max(55, (int) (110 * sy));
+
+        startGameButton.setBounds(
+            (w - buttonW) / 2,
+            (h - buttonH) / 2,
+            buttonW,
+            buttonH
+        );
+
+        startGameButton.setFont(gameFont((float) (23 * scale)));
+    }
+
     private void goBack() {
+        hideStartOverlay();
         stopCharacterMusic();
 
         if (main != null) {
@@ -284,9 +293,7 @@ public class CharacterSelection extends JPanel {
         }
     }
 
-    // CHARACTER SELECTION MUSIC
     private void playCharacterMusic() {
-
         if (characterMusic != null) {
             if (!characterMusic.isRunning()) {
                 characterMusic.setFramePosition(0);
@@ -296,31 +303,22 @@ public class CharacterSelection extends JPanel {
         }
 
         try {
-            File musicFile = new File(
+            File file = new File(
                 "assets/audio/character_selection.wav"
             );
 
-            if (!musicFile.isFile()) {
-                System.out.println(
-                    "Character music not found: "
-                    + musicFile.getAbsolutePath()
-                );
-                return;
-            }
+            if (!file.isFile()) return;
 
             try (AudioInputStream audio =
-                    AudioSystem.getAudioInputStream(musicFile)) {
-
+                    AudioSystem.getAudioInputStream(file)) {
                 characterMusic = AudioSystem.getClip();
                 characterMusic.open(audio);
                 characterMusic.loop(Clip.LOOP_CONTINUOUSLY);
             }
-
         } catch (Exception e) {
             System.out.println(
                 "Character music error: " + e.getMessage()
             );
-
             stopCharacterMusic();
         }
     }
@@ -336,20 +334,13 @@ public class CharacterSelection extends JPanel {
     @Override
     public void addNotify() {
         super.addNotify();
-
-        if (animationTimer != null) {
-            animationTimer.start();
-        }
+        if (animationTimer != null) animationTimer.start();
     }
 
     @Override
     public void removeNotify() {
         stopCharacterMusic();
-
-        if (animationTimer != null) {
-            animationTimer.stop();
-        }
-
+        if (animationTimer != null) animationTimer.stop();
         super.removeNotify();
     }
 
@@ -359,16 +350,13 @@ public class CharacterSelection extends JPanel {
 
         if (visible) {
             SwingUtilities.invokeLater(() -> {
-                if (isShowing()) {
-                    playCharacterMusic();
-                }
+                if (isShowing()) playCharacterMusic();
             });
         } else {
             stopCharacterMusic();
         }
     }
 
-    // PIXEL FONT
     private Font gameFont(float size) {
         return new Font(
             "Press Start 2P",
@@ -377,22 +365,12 @@ public class CharacterSelection extends JPanel {
         );
     }
 
-    // BACKGROUND IMAGE
     private void loadBackground() {
         try {
             File file = new File(
                 "assets/backgrounds/character_selection_bg.png"
             );
-
-            if (file.isFile()) {
-                background = ImageIO.read(file);
-            } else {
-                System.out.println(
-                    "Background not found: "
-                    + file.getAbsolutePath()
-                );
-            }
-
+            if (file.isFile()) background = ImageIO.read(file);
         } catch (Exception e) {
             System.out.println(
                 "Background error: " + e.getMessage()
@@ -400,182 +378,89 @@ public class CharacterSelection extends JPanel {
         }
     }
 
-    // CHARACTER GIFS
     private void loadGifs() {
         for (int i = 0; i < gifFiles.length; i++) {
-
             File file = new File(
                 "assets/characters/portraits/" + gifFiles[i]
             );
 
             if (!file.isFile()) {
-                System.out.println(
-                    "MISSING GIF: " + gifFiles[i]
-                );
+                System.out.println("MISSING GIF: " + gifFiles[i]);
                 continue;
             }
 
-            ImageIcon icon = new ImageIcon(
-                file.getAbsolutePath()
-            );
+            ImageIcon icon = new ImageIcon(file.getAbsolutePath());
 
-            if (icon.getIconWidth() <= 0 ||
-                icon.getIconHeight() <= 0) {
-
-                System.out.println(
-                    "INVALID GIF: " + gifFiles[i]
-                );
-                continue;
+            if (icon.getIconWidth() > 0 &&
+                icon.getIconHeight() > 0) {
+                gifs[i] = icon;
             }
-
-            gifs[i] = icon;
         }
     }
 
-    // ADD STYLED TEXT TO PROFILE
     private void appendProfileText(
-            StyledDocument document,
-            String text,
-            AttributeSet style) {
-
+            StyledDocument doc, String text, AttributeSet style) {
         try {
-            document.insertString(
-                document.getLength(),
-                text,
-                style
-            );
+            doc.insertString(doc.getLength(), text, style);
         } catch (BadLocationException e) {
-            System.out.println(
-                "Profile text error: " + e.getMessage()
-            );
+            System.out.println(e.getMessage());
         }
     }
 
-    // UPDATE CHARACTER PROFILE
     private void updateCharacter() {
-
         nameLabel.setText(names[currentCharacter]);
         roleLabel.setText(roles[currentCharacter]);
 
-        String[] profile = profiles[currentCharacter];
-
-        StyledDocument document =
-            profileArea.getStyledDocument();
+        StyledDocument doc = profileArea.getStyledDocument();
 
         try {
-            document.remove(0, document.getLength());
+            doc.remove(0, doc.getLength());
         } catch (BadLocationException e) {
-            System.out.println(
-                "Profile clear error: " + e.getMessage()
-            );
+            return;
         }
 
-        // NORMAL PROFILE FONT
-        SimpleAttributeSet normalStyle =
-            new SimpleAttributeSet();
-
-        StyleConstants.setFontFamily(
-            normalStyle, "Press Start 2P"
+        int normalSize = Math.max(
+            11, profileArea.getFont().getSize()
         );
 
-        StyleConstants.setFontSize(
-            normalStyle,
-            Math.max(11, profileArea.getFont().getSize())
-        );
+        SimpleAttributeSet normal = new SimpleAttributeSet();
+        StyleConstants.setFontFamily(normal, "Press Start 2P");
+        StyleConstants.setFontSize(normal, normalSize);
+        StyleConstants.setForeground(normal, TEXT);
 
-        StyleConstants.setForeground(
-            normalStyle, TEXT
-        );
+        SimpleAttributeSet quote = new SimpleAttributeSet();
+        StyleConstants.setFontFamily(quote, "Press Start 2P");
+        StyleConstants.setFontSize(quote, normalSize + 2);
+        StyleConstants.setForeground(quote, GLOW);
+        StyleConstants.setItalic(quote, true);
 
-        // SLIGHTLY BIGGER QUOTE FONT
-        SimpleAttributeSet quoteStyle =
-            new SimpleAttributeSet();
+        String[] p = profiles[currentCharacter];
 
-        StyleConstants.setFontFamily(
-            quoteStyle, "Press Start 2P"
-        );
-
-        StyleConstants.setFontSize(
-            quoteStyle,
-            Math.max(13, profileArea.getFont().getSize() + 2)
-        );
-
-        StyleConstants.setForeground(
-            quoteStyle, GLOW
-        );
-
-        StyleConstants.setItalic(
-            quoteStyle, true
-        );
-
-        // TALENT
-        appendProfileText(
-            document,
-            "TALENT: " + profile[0] + "\n\n",
-            normalStyle
-        );
-
-        // STRENGTH
-        appendProfileText(
-            document,
-            "STRENGTH: " + profile[1] + "\n\n",
-            normalStyle
-        );
-
-        // WEAKNESS
-        appendProfileText(
-            document,
-            "WEAKNESS: " + profile[2] + "\n\n",
-            normalStyle
-        );
-
-        // PERSONALITY
-        appendProfileText(
-            document,
-            "PERSONALITY: " + profile[3] + "\n\n",
-            normalStyle
-        );
-
-        // SIGNATURE QUOTE
-        appendProfileText(
-            document,
-            "\"" + profile[4] + "\"",
-            quoteStyle
-        );
+        appendProfileText(doc, "TALENT: " + p[0] + "\n\n", normal);
+        appendProfileText(doc, "STRENGTH: " + p[1] + "\n\n", normal);
+        appendProfileText(doc, "WEAKNESS: " + p[2] + "\n\n", normal);
+        appendProfileText(doc, "PERSONALITY: " + p[3] + "\n\n", normal);
+        appendProfileText(doc, "\"" + p[4] + "\"", quote);
 
         profileArea.setCaretPosition(0);
+        mainPortrait.setCharacterIcon(gifs[currentCharacter]);
 
-        mainPortrait.setCharacterIcon(
-            gifs[currentCharacter]
+        mainPortrait.setCharacterAdjustment(
+            currentCharacter == 0 ? 1.06 : 1.0
         );
 
-        if (currentCharacter == 0) {
-            mainPortrait.setCharacterAdjustment(1.06);
-        } else {
-            mainPortrait.setCharacterAdjustment(1.0);
+        for (int i = 0; i < portraitButtons.length; i++) {
+            portraitButtons[i].setSelectedGlow(i == currentCharacter);
         }
 
-        for (int i = 0; i < 5; i++) {
-            portraitButtons[i].setSelectedGlow(
-                i == currentCharacter
-            );
-        }
-
-        boolean selected =
-            selectedCharacter == currentCharacter;
-
-        selectButton.setText(
-            selected ? "SELECTED" : "SELECT"
-        );
-
+        boolean selected = selectedCharacter == currentCharacter;
+        selectButton.setText(selected ? "SELECTED" : "SELECT");
         selectButton.setSelectedGlow(selected);
 
         repaint();
     }
 
-    // ORIGINAL SCREEN LAYOUT
     private void updateLayout() {
-
         int w = getWidth();
         int h = getHeight();
 
@@ -585,7 +470,6 @@ public class CharacterSelection extends JPanel {
         double sy = h / (double) REF_HEIGHT;
         double scale = Math.min(sx, sy);
 
-        // LEFT CHARACTER THUMBNAILS
         int buttonX = (int) (115 * sx);
         int buttonY = (int) (185 * sy);
         int buttonW = (int) (130 * sx);
@@ -601,7 +485,6 @@ public class CharacterSelection extends JPanel {
             );
         }
 
-        // MAIN CHARACTER - UNCHANGED
         mainPortrait.setBounds(
             (int) (340 * sx),
             (int) (95 * sy),
@@ -609,7 +492,6 @@ public class CharacterSelection extends JPanel {
             (int) (675 * sy)
         );
 
-        // DESCRIPTION PANEL - UNCHANGED
         int panelW = (int) (650 * sx);
         int panelH = (int) (525 * sy);
 
@@ -634,37 +516,26 @@ public class CharacterSelection extends JPanel {
             (int) (40 * sy)
         );
 
-        // PROFILE AREA - SAME POSITION
         int textX = (int) (40 * sx);
         int textY = (int) (160 * sy);
-
         int textW = panelW - (int) (80 * sx);
         int textH = panelH - textY - (int) (20 * sy);
 
         profileArea.setBounds(
-            textX,
-            textY,
-            textW,
-            Math.max(1, textH)
+            textX, textY, textW, Math.max(1, textH)
         );
 
-        // NAVIGATION BUTTONS - UNCHANGED
         int navW = (int) (270 * sx);
         int navH = (int) (75 * sy);
         int navY = h - (int) (105 * sy);
 
         backButton.setBounds(
-            (int) (45 * sx),
-            navY,
-            navW,
-            navH
+            (int) (45 * sx), navY, navW, navH
         );
 
         nextButton.setBounds(
             w - navW - (int) (45 * sx),
-            navY,
-            navW,
-            navH
+            navY, navW, navH
         );
 
         int selectW = (int) (350 * sx);
@@ -677,112 +548,20 @@ public class CharacterSelection extends JPanel {
             selectH
         );
 
-        // ORIGINAL BUTTON AND HEADING FONTS
-        backButton.setFont(
-            gameFont((float) (17 * scale))
-        );
+        backButton.setFont(gameFont((float) (17 * scale)));
+        nextButton.setFont(gameFont((float) (17 * scale)));
+        selectButton.setFont(gameFont((float) (20 * scale)));
+        nameLabel.setFont(gameFont((float) (24 * scale)));
+        roleLabel.setFont(gameFont((float) (18 * scale)));
+        profileArea.setFont(gameFont((float) (15 * scale)));
 
-        nextButton.setFont(
-            gameFont((float) (17 * scale))
-        );
+        updateCharacter();
 
-        selectButton.setFont(
-            gameFont((float) (20 * scale))
-        );
-
-        nameLabel.setFont(
-            gameFont((float) (24 * scale))
-        );
-
-        roleLabel.setFont(
-            gameFont((float) (18 * scale))
-        );
-
-        // NORMAL PROFILE FONT SIZE
-        profileArea.setFont(
-            gameFont((float) (15 * scale))
-        );
-
-        // REFRESH STYLED TEXT AT CORRECT FONT SIZE
-        updateProfileFontStyles();
+        startOverlay.setBounds(0, 0, w, h);
+        updateStartButtonLayout();
 
         revalidate();
         repaint();
-    }
-
-    // UPDATE FONT SIZES WITHOUT CHANGING TEXT
-    private void updateProfileFontStyles() {
-
-        StyledDocument document =
-            profileArea.getStyledDocument();
-
-        int length = document.getLength();
-
-        if (length == 0) return;
-
-        int normalSize = profileArea.getFont().getSize();
-        int quoteSize = normalSize + 2;
-
-        SimpleAttributeSet normalStyle =
-            new SimpleAttributeSet();
-
-        StyleConstants.setFontFamily(
-            normalStyle, "Press Start 2P"
-        );
-
-        StyleConstants.setFontSize(
-            normalStyle, normalSize
-        );
-
-        StyleConstants.setForeground(
-            normalStyle, TEXT
-        );
-
-        SimpleAttributeSet quoteStyle =
-            new SimpleAttributeSet();
-
-        StyleConstants.setFontFamily(
-            quoteStyle, "Press Start 2P"
-        );
-
-        StyleConstants.setFontSize(
-            quoteStyle, quoteSize
-        );
-
-        StyleConstants.setForeground(
-            quoteStyle, GLOW
-        );
-
-        StyleConstants.setItalic(
-            quoteStyle, true
-        );
-
-        String[] profile = profiles[currentCharacter];
-
-        String quoteText = "\"" + profile[4] + "\"";
-
-        String fullText = "";
-
-        try {
-            fullText = document.getText(0, length);
-        } catch (BadLocationException e) {
-            return;
-        }
-
-        int quoteStart = fullText.lastIndexOf(quoteText);
-
-        document.setCharacterAttributes(
-            0, length, normalStyle, true
-        );
-
-        if (quoteStart >= 0) {
-            document.setCharacterAttributes(
-                quoteStart,
-                quoteText.length(),
-                quoteStyle,
-                true
-            );
-        }
     }
 
     public int getSelectedCharacter() {
@@ -795,76 +574,50 @@ public class CharacterSelection extends JPanel {
 
         if (background != null) {
             g.drawImage(
-                background,
-                0,
-                0,
-                getWidth(),
-                getHeight(),
-                this
+                background, 0, 0,
+                getWidth(), getHeight(), this
             );
         }
     }
 
-    // ANIMATED GIF RENDERING
     private static void drawAnimatedGif(
-            Graphics2D g,
-            Component observer,
-            ImageIcon icon,
-            int x,
-            int y,
-            int width,
-            int height) {
+            Graphics2D g, Component observer,
+            ImageIcon icon, int x, int y,
+            int width, int height) {
 
-        if (icon == null) return;
+        if (icon == null || width <= 0 || height <= 0) return;
 
-        int sourceW = icon.getIconWidth();
-        int sourceH = icon.getIconHeight();
+        int sw = icon.getIconWidth();
+        int sh = icon.getIconHeight();
 
-        if (sourceW <= 0 ||
-            sourceH <= 0 ||
-            width <= 0 ||
-            height <= 0) {
-            return;
-        }
+        if (sw <= 0 || sh <= 0) return;
 
         double scale = Math.min(
-            width / (double) sourceW,
-            height / (double) sourceH
+            width / (double) sw,
+            height / (double) sh
         );
 
-        double drawW = sourceW * scale;
-        double drawH = sourceH * scale;
-
-        double drawX =
-            x + (width - drawW) / 2.0;
-
-        double drawY =
-            y + (height - drawH) / 2.0;
+        double dw = sw * scale;
+        double dh = sh * scale;
 
         Graphics2D g2 = (Graphics2D) g.create();
-
         g2.setRenderingHint(
             RenderingHints.KEY_INTERPOLATION,
             RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR
         );
 
-        g2.translate(drawX, drawY);
+        g2.translate(
+            x + (width - dw) / 2.0,
+            y + (height - dh) / 2.0
+        );
         g2.scale(scale, scale);
-
         icon.paintIcon(observer, g2, 0, 0);
-
         g2.dispose();
     }
 
-    // MAIN CHARACTER PREVIEW
     private static class CharacterPreview extends JComponent {
-
         private ImageIcon characterIcon;
         private double characterScale = 1.0;
-
-        CharacterPreview() {
-            setOpaque(false);
-        }
 
         void setCharacterIcon(ImageIcon icon) {
             characterIcon = icon;
@@ -879,68 +632,40 @@ public class CharacterSelection extends JPanel {
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-
             if (characterIcon == null) return;
 
-            Graphics2D g2 = (Graphics2D) g.create();
+            int sw = characterIcon.getIconWidth();
+            int sh = characterIcon.getIconHeight();
+            if (sw <= 0 || sh <= 0) return;
 
+            double maxW = getWidth() - 8.0;
+            double maxH = getHeight() - 8.0;
+
+            double scale = Math.min(maxW / sw, maxH / sh);
+            scale = Math.min(scale * characterScale, scale);
+
+            double dw = sw * scale;
+            double dh = sh * scale;
+
+            Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(
                 RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR
             );
 
-            int sourceW = characterIcon.getIconWidth();
-            int sourceH = characterIcon.getIconHeight();
-
-            if (sourceW <= 0 || sourceH <= 0) {
-                g2.dispose();
-                return;
-            }
-
-            double maxW = getWidth() - 8.0;
-            double maxH = getHeight() - 8.0;
-
-            double baseScale = Math.min(
-                maxW / sourceW,
-                maxH / sourceH
+            g2.translate(
+                (getWidth() - dw) / 2.0,
+                Math.max(4, getHeight() - dh - 4)
             );
-
-            double finalScale =
-                baseScale * characterScale;
-
-            finalScale = Math.min(
-                finalScale,
-                Math.min(
-                    maxW / sourceW,
-                    maxH / sourceH
-                )
-            );
-
-            double drawW = sourceW * finalScale;
-            double drawH = sourceH * finalScale;
-
-            double drawX =
-                (getWidth() - drawW) / 2.0;
-
-            double drawY =
-                getHeight() - drawH - 4.0;
-
-            drawY = Math.max(4.0, drawY);
-
-            g2.translate(drawX, drawY);
-            g2.scale(finalScale, finalScale);
-
+            g2.scale(scale, scale);
             characterIcon.paintIcon(this, g2, 0, 0);
-
             g2.dispose();
         }
     }
 
-    // LEFT CHARACTER BUTTONS
     private static class PortraitButton extends JButton {
-
         private ImageIcon characterIcon;
-        private boolean selectedGlow = false;
+        private boolean selectedGlow;
 
         PortraitButton() {
             setContentAreaFilled(false);
@@ -948,12 +673,9 @@ public class CharacterSelection extends JPanel {
             setFocusPainted(false);
             setOpaque(false);
             setRolloverEnabled(true);
-
-            setCursor(
-                Cursor.getPredefinedCursor(
-                    Cursor.HAND_CURSOR
-                )
-            );
+            setCursor(Cursor.getPredefinedCursor(
+                Cursor.HAND_CURSOR
+            ));
         }
 
         void setCharacterIcon(ImageIcon icon) {
@@ -968,16 +690,13 @@ public class CharacterSelection extends JPanel {
 
         @Override
         protected void paintComponent(Graphics g) {
-
             Graphics2D g2 = (Graphics2D) g.create();
-
             g2.setRenderingHint(
                 RenderingHints.KEY_ANTIALIASING,
                 RenderingHints.VALUE_ANTIALIAS_ON
             );
 
-            int x = 5;
-            int y = 5;
+            int x = 5, y = 5;
             int w = getWidth() - 11;
             int h = getHeight() - 11;
 
@@ -986,49 +705,27 @@ public class CharacterSelection extends JPanel {
                 return;
             }
 
-            int cut = Math.min(
-                14,
-                Math.max(3, h / 5)
-            );
+            int cut = Math.min(14, Math.max(3, h / 5));
+            Polygon shape = createPolygon(x, y, w, h, cut);
 
-            Polygon shape =
-                createPolygon(x, y, w, h, cut);
-
-            boolean active =
-                selectedGlow ||
+            boolean active = selectedGlow ||
                 getModel().isRollover() ||
                 getModel().isPressed();
 
             if (active) {
                 for (int i = 8; i >= 1; i--) {
-                    g2.setStroke(
-                        new BasicStroke(i * 2f)
-                    );
-
-                    g2.setColor(
-                        new Color(195, 90, 255, 12)
-                    );
-
+                    g2.setStroke(new BasicStroke(i * 2f));
+                    g2.setColor(new Color(195, 90, 255, 12));
                     g2.drawPolygon(shape);
                 }
             }
 
-            g2.setColor(
-                active
-                    ? new Color(70, 40, 100)
-                    : DARK
-            );
-
+            g2.setColor(active ?
+                new Color(70, 40, 100) : DARK);
             g2.fillPolygon(shape);
 
-            g2.setStroke(
-                new BasicStroke(active ? 3f : 2f)
-            );
-
-            g2.setColor(
-                active ? GLOW : BORDER
-            );
-
+            g2.setStroke(new BasicStroke(active ? 3f : 2f));
+            g2.setColor(active ? GLOW : BORDER);
             g2.drawPolygon(shape);
 
             if (characterIcon != null) {
@@ -1036,13 +733,9 @@ public class CharacterSelection extends JPanel {
                 g2.clip(shape);
 
                 int padding = Math.max(6, h / 12);
-
                 drawAnimatedGif(
-                    g2,
-                    this,
-                    characterIcon,
-                    x + padding,
-                    y + padding,
+                    g2, this, characterIcon,
+                    x + padding, y + padding,
                     Math.max(1, w - padding * 2),
                     Math.max(1, h - padding * 2)
                 );
@@ -1052,13 +745,9 @@ public class CharacterSelection extends JPanel {
 
             if (w > 12 && h > 12) {
                 Polygon inner = createPolygon(
-                    x + 4,
-                    y + 4,
-                    w - 8,
-                    h - 8,
+                    x + 4, y + 4, w - 8, h - 8,
                     Math.max(2, cut - 3)
                 );
-
                 g2.setStroke(new BasicStroke(1f));
                 g2.setColor(new Color(113, 80, 148));
                 g2.drawPolygon(inner);
@@ -1068,26 +757,20 @@ public class CharacterSelection extends JPanel {
         }
     }
 
-    // BOTTOM PIXEL BUTTONS
     private static class PixelButton extends JButton {
-
-        private boolean selectedGlow = false;
+        private boolean selectedGlow;
 
         PixelButton(String text) {
             super(text);
-
             setForeground(TEXT);
             setContentAreaFilled(false);
             setBorderPainted(false);
             setFocusPainted(false);
             setOpaque(false);
             setRolloverEnabled(true);
-
-            setCursor(
-                Cursor.getPredefinedCursor(
-                    Cursor.HAND_CURSOR
-                )
-            );
+            setCursor(Cursor.getPredefinedCursor(
+                Cursor.HAND_CURSOR
+            ));
         }
 
         void setSelectedGlow(boolean value) {
@@ -1097,16 +780,13 @@ public class CharacterSelection extends JPanel {
 
         @Override
         protected void paintComponent(Graphics g) {
-
             Graphics2D g2 = (Graphics2D) g.create();
-
             g2.setRenderingHint(
                 RenderingHints.KEY_ANTIALIASING,
                 RenderingHints.VALUE_ANTIALIAS_ON
             );
 
-            int x = 5;
-            int y = 5;
+            int x = 5, y = 5;
             int w = getWidth() - 11;
             int h = getHeight() - 11;
 
@@ -1115,60 +795,34 @@ public class CharacterSelection extends JPanel {
                 return;
             }
 
-            int cut = Math.min(
-                14,
-                Math.max(3, h / 5)
-            );
+            int cut = Math.min(14, Math.max(3, h / 5));
+            Polygon shape = createPolygon(x, y, w, h, cut);
 
-            Polygon shape =
-                createPolygon(x, y, w, h, cut);
-
-            boolean active =
-                selectedGlow ||
+            boolean active = selectedGlow ||
                 getModel().isRollover() ||
                 getModel().isPressed();
 
             if (active) {
                 for (int i = 8; i >= 1; i--) {
-                    g2.setStroke(
-                        new BasicStroke(i * 2f)
-                    );
-
-                    g2.setColor(
-                        new Color(195, 90, 255, 12)
-                    );
-
+                    g2.setStroke(new BasicStroke(i * 2f));
+                    g2.setColor(new Color(195, 90, 255, 12));
                     g2.drawPolygon(shape);
                 }
             }
 
-            g2.setColor(
-                active
-                    ? new Color(70, 40, 100)
-                    : DARK
-            );
-
+            g2.setColor(active ?
+                new Color(70, 40, 100) : DARK);
             g2.fillPolygon(shape);
 
-            g2.setStroke(
-                new BasicStroke(active ? 3f : 2f)
-            );
-
-            g2.setColor(
-                active ? GLOW : BORDER
-            );
-
+            g2.setStroke(new BasicStroke(active ? 3f : 2f));
+            g2.setColor(active ? GLOW : BORDER);
             g2.drawPolygon(shape);
 
             if (w > 12 && h > 12) {
                 Polygon inner = createPolygon(
-                    x + 4,
-                    y + 4,
-                    w - 8,
-                    h - 8,
+                    x + 4, y + 4, w - 8, h - 8,
                     Math.max(2, cut - 3)
                 );
-
                 g2.setStroke(new BasicStroke(1f));
                 g2.setColor(new Color(113, 80, 148));
                 g2.drawPolygon(inner);
@@ -1178,20 +832,14 @@ public class CharacterSelection extends JPanel {
 
             if (label != null && !label.isEmpty()) {
                 g2.setFont(getFont());
-
                 FontMetrics fm = g2.getFontMetrics();
 
-                int textX =
-                    (getWidth() - fm.stringWidth(label)) / 2;
+                int textX = (getWidth() -
+                    fm.stringWidth(label)) / 2;
+                int textY = (getHeight() -
+                    fm.getHeight()) / 2 + fm.getAscent();
 
-                int textY =
-                    (getHeight() - fm.getHeight()) / 2
-                    + fm.getAscent();
-
-                g2.setColor(
-                    active ? Color.WHITE : TEXT
-                );
-
+                g2.setColor(active ? Color.WHITE : TEXT);
                 g2.drawString(label, textX, textY);
             }
 
@@ -1200,32 +848,16 @@ public class CharacterSelection extends JPanel {
     }
 
     private static Polygon createPolygon(
-            int x,
-            int y,
-            int w,
-            int h,
-            int cut) {
+            int x, int y, int w, int h, int cut) {
 
         int[] xs = {
-            x + cut,
-            x + w - cut,
-            x + w,
-            x + w,
-            x + w - cut,
-            x + cut,
-            x,
-            x
+            x + cut, x + w - cut, x + w, x + w,
+            x + w - cut, x + cut, x, x
         };
 
         int[] ys = {
-            y,
-            y,
-            y + cut,
-            y + h - cut,
-            y + h,
-            y + h,
-            y + h - cut,
-            y + cut
+            y, y, y + cut, y + h - cut,
+            y + h, y + h, y + h - cut, y + cut
         };
 
         return new Polygon(xs, ys, 8);
