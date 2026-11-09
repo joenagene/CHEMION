@@ -1,4 +1,3 @@
-
 import java.awt.*;
 import java.awt.event.*;
 import java.io.IOException;
@@ -6,20 +5,13 @@ import javax.swing.*;
 
 public class Player extends JPanel {
 
-    // Walking animations
+    // Walking animations only
     private SpriteAnimation walkDown;
     private SpriteAnimation walkUp;
     private SpriteAnimation walkLeft;
     private SpriteAnimation walkRight;
 
-    // Hurt animations
-    private SpriteAnimation hurtDown;
-    private SpriteAnimation hurtUp;
-    private SpriteAnimation hurtLeft;
-    private SpriteAnimation hurtRight;
-
     private SpriteAnimation currentAnimation;
-    private SpriteAnimation activeHurtAnimation;
 
     // Player position
     private int x = 350;
@@ -37,8 +29,8 @@ public class Player extends JPanel {
     // Last direction
     private String facing = "down";
 
-    // Hurt state
-    private boolean isHurt = false;
+    // Damage flash timer (replaces the hurt sprite sheets)
+    private int hurtTimer = 0; 
 
     public Player() {
 
@@ -60,7 +52,6 @@ public class Player extends JPanel {
     private void loadAnimations() {
 
         String walkFolder = "assets/characters/nicole/walk/";
-        String hurtFolder = "assets/characters/nicole/hurt/";
 
         try {
 
@@ -85,31 +76,10 @@ public class Player extends JPanel {
                 144, 167, 5
             );
 
-            // HURT
-            hurtDown = new SpriteAnimation(
-                hurtFolder + "nicole_hurt_down.png",
-                250, 250, 5
-            );
-
-            hurtUp = new SpriteAnimation(
-                hurtFolder + "nicole_hurt_up.png",
-                250, 250, 5
-            );
-
-            hurtLeft = new SpriteAnimation(
-                hurtFolder + "nicole_hurt_left.png",
-                250, 250, 5
-            );
-
-            hurtRight = new SpriteAnimation(
-                hurtFolder + "nicole_hurt_right.png",
-                250, 250, 5
-            );
-
             currentAnimation = walkDown;
 
             System.out.println(
-                "Nicole's walking and hurt animations loaded!"
+                "Nicole's walking animations loaded!"
             );
 
         } catch (IOException e) {
@@ -144,11 +114,16 @@ public class Player extends JPanel {
             () -> right = false
         );
 
-        // Press H to test hurt animation
+        // Press H to test taking damage (red flash effect)
         bindKey("H", "hurt",
-            () -> startHurt(),
+            () -> triggerDamage(),
             () -> {}
         );
+    }
+
+    // Call this method whenever a zombie hits the player
+    public void triggerDamage() {
+        hurtTimer = 20; // Flashes red for 20 frames (~1/3 of a second at 60 FPS)
     }
 
     private void bindKey(
@@ -189,64 +164,11 @@ public class Player extends JPanel {
         });
     }
 
-    // Start hurt animation
-    private void startHurt() {
-
-        if (isHurt) {
-            return;
-        }
-
-        isHurt = true;
-
-        // Select hurt animation based on facing direction
-        switch (facing) {
-
-            case "up":
-                activeHurtAnimation = hurtUp;
-                break;
-
-            case "down":
-                activeHurtAnimation = hurtDown;
-                break;
-
-            case "left":
-                activeHurtAnimation = hurtLeft;
-                break;
-
-            case "right":
-                activeHurtAnimation = hurtRight;
-                break;
-        }
-
-        if (activeHurtAnimation != null) {
-            activeHurtAnimation.reset();
-        }
-    }
-
     private void updateGame() {
 
-        // Play hurt animation first
-        if (isHurt) {
-
-            if (activeHurtAnimation != null) {
-
-                activeHurtAnimation.updateOnce();
-
-                if (activeHurtAnimation.isFinished()) {
-
-                    isHurt = false;
-                    activeHurtAnimation = null;
-
-                    // Return to the correct walking direction
-                    selectWalkingAnimation();
-
-                    if (currentAnimation != null) {
-                        currentAnimation.reset();
-                    }
-                }
-            }
-
-            return;
+        // Count down the hurt flash timer
+        if (hurtTimer > 0) {
+            hurtTimer--;
         }
 
         boolean moving = up || down || left || right;
@@ -319,29 +241,18 @@ public class Player extends JPanel {
 
         super.paintComponent(g);
 
-        if (isHurt && activeHurtAnimation != null) {
+        if (currentAnimation != null) {
 
-            // Red flash appears on the third hurt frame
-            boolean redFlash =
-                activeHurtAnimation.getCurrentFrame() == 2;
-
-            activeHurtAnimation.draw(
-                g,
-                x,
-                y,
-                spriteWidth,
-                spriteHeight,
-                redFlash
-            );
-        }
-        else if (currentAnimation != null) {
+            // Pass true if hurtTimer is active to trigger the red tint overlay
+            boolean isFlashing = hurtTimer > 0;
 
             currentAnimation.draw(
                 g,
                 x,
                 y,
                 spriteWidth,
-                spriteHeight
+                spriteHeight,
+                isFlashing
             );
         }
     }

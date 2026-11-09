@@ -1,4 +1,3 @@
-
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -65,7 +64,7 @@ public class SpriteAnimation {
         }
     }
 
-    // Play animation once for hurt
+    // Play animation once (kept for backwards compatibility if needed elsewhere)
     public void updateOnce() {
 
         if (finished) {
