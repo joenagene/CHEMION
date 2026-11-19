@@ -3,6 +3,8 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.util.HashSet;
+import java.util.Set;
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
@@ -13,6 +15,11 @@ public class Main extends JFrame {
     private final JPanel screens = new JPanel(cardLayout);
 
     private Clip menuMusic;
+    private JPanel currentLevel1;
+    private OutbreakIntro currentIntro;
+    private OutbreakIntro.DialoguePanel currentDialogue;
+    private final Set<String> introducedEnemies = new HashSet<>();
+    private int selectedScientistIndex;
 
     private static final int IMAGE_WIDTH = 1648;
     private static final int IMAGE_HEIGHT = 928;
@@ -25,14 +32,8 @@ public class Main extends JFrame {
         setLocationRelativeTo(null);
 
         screens.add(createMainMenu(), "MainMenu");
-        screens.add(
-            new CharacterSelection(this),
-            "CharacterSelection"
-        );
-        screens.add(
-            new GameInstructions(this),
-            "Instructions"
-        );
+        screens.add(new CharacterSelection(this), "CharacterSelection");
+        screens.add(new GameInstructions(this), "Instructions");
 
         add(screens);
         showScreen("MainMenu");
@@ -43,9 +44,7 @@ public class Main extends JFrame {
         if (menuMusic != null) return;
 
         try {
-            File file = new File(
-                "assets/audio/main_menu.wav"
-            );
+            File file = new File("assets/audio/main_menu.wav");
 
             try (AudioInputStream audio =
                     AudioSystem.getAudioInputStream(file)) {
@@ -56,9 +55,7 @@ public class Main extends JFrame {
             }
 
         } catch (Exception e) {
-            System.out.println(
-                "Music error: " + e.getMessage()
-            );
+            System.out.println("Music error: " + e.getMessage());
 
             if (menuMusic != null) {
                 menuMusic.close();
@@ -169,6 +166,7 @@ public class Main extends JFrame {
             g2.setColor(
                 hover ? hoverColor : normalColor
             );
+
             g2.fillPolygon(shape);
 
             g2.setStroke(new BasicStroke(
@@ -284,6 +282,7 @@ public class Main extends JFrame {
 
                 double scaleX =
                     width / (double) IMAGE_WIDTH;
+
                 double scaleY =
                     height / (double) IMAGE_HEIGHT;
 
@@ -338,7 +337,8 @@ public class Main extends JFrame {
                 g.drawImage(
                     background,
                     0, 0,
-                    getWidth(), getHeight(),
+                    getWidth(),
+                    getHeight(),
                     null
                 );
             }
@@ -369,7 +369,7 @@ public class Main extends JFrame {
         }
     }
 
-    // START GAME -> TEMPORARY LEVEL 1
+    // START GAME -> INTRO -> CONVERSATION -> LEVEL 1
     public void startNewGame(int characterIndex) {
 
         String[] scientists = {
@@ -383,6 +383,25 @@ public class Main extends JFrame {
         if (characterIndex < 0 ||
             characterIndex >= scientists.length) {
             return;
+        }
+
+        selectedScientistIndex = characterIndex;
+        introducedEnemies.clear();
+
+        if (currentIntro != null) {
+            currentIntro.stop();
+            screens.remove(currentIntro);
+            currentIntro = null;
+        }
+
+        if (currentDialogue != null) {
+            screens.remove(currentDialogue);
+            currentDialogue = null;
+        }
+
+        if (currentLevel1 != null) {
+            screens.remove(currentLevel1);
+            currentLevel1 = null;
         }
 
         JPanel level1 = new JPanel(new GridBagLayout());
@@ -414,12 +433,6 @@ public class Main extends JFrame {
         ));
         scientist.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JLabel note = new JLabel(
-            "Battlefield is under development"
-        );
-        note.setForeground(Color.LIGHT_GRAY);
-        note.setAlignmentX(Component.CENTER_ALIGNMENT);
-
         JButton back = new JButton("BACK TO MAIN MENU");
         back.setAlignmentX(Component.CENTER_ALIGNMENT);
 
@@ -430,15 +443,165 @@ public class Main extends JFrame {
         content.add(title);
         content.add(Box.createVerticalStrut(24));
         content.add(scientist);
-        content.add(Box.createVerticalStrut(20));
-        content.add(note);
-        content.add(Box.createVerticalStrut(28));
+        content.add(Box.createVerticalStrut(48));
         content.add(back);
 
         level1.add(content);
 
+        // TEMPORARY TEST SHORTCUTS
+        // 1 = Common Zombie
+        // 2 = Runner Zombie
+        // 3 = Crawler Zombie
+        // 4 = Mutated Survivor
+        // B = Level 1 ending
+
+        bindStoryKey(
+            level1,
+            KeyEvent.VK_1,
+            "common",
+            () -> showEnemyIntroduction("common_zombie")
+        );
+
+        bindStoryKey(
+            level1,
+            KeyEvent.VK_2,
+            "runner",
+            () -> showEnemyIntroduction("runner_zombie")
+        );
+
+        bindStoryKey(
+            level1,
+            KeyEvent.VK_3,
+            "crawler",
+            () -> showEnemyIntroduction("crawler_zombie")
+        );
+
+        bindStoryKey(
+            level1,
+            KeyEvent.VK_4,
+            "boss",
+            () -> showEnemyIntroduction("mutated_survivor")
+        );
+
+        bindStoryKey(
+            level1,
+            KeyEvent.VK_B,
+            "ending",
+            this::showLevel1Ending
+        );
+
+        currentLevel1 = level1;
         screens.add(level1, "Level1");
-        showScreen("Level1");
+
+        // OPENING NARRATION FROM OutbreakIntro.java
+        showNarration(
+            OutbreakIntro.opening(
+                this::showScientistConversation
+            )
+        );
+    }
+
+    // KEYBOARD SHORTCUTS FOR STORY TESTING
+    private void bindStoryKey(
+            JPanel panel,
+            int keyCode,
+            String actionName,
+            Runnable action) {
+
+        panel.getInputMap(
+            JComponent.WHEN_IN_FOCUSED_WINDOW
+        ).put(
+            KeyStroke.getKeyStroke(keyCode, 0),
+            actionName
+        );
+
+        panel.getActionMap().put(
+            actionName,
+            new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    action.run();
+                }
+            }
+        );
+    }
+
+    // SHOW CENTERED NARRATION
+    private void showNarration(OutbreakIntro narration) {
+
+        if (narration == null) return;
+
+        if (currentIntro != null) {
+            currentIntro.stop();
+            screens.remove(currentIntro);
+        }
+
+        currentIntro = narration;
+
+        screens.add(currentIntro, "StoryNarration");
+        showScreen("StoryNarration");
+        currentIntro.start();
+    }
+
+    // SCIENTIST AND LAB CONTROL CONVERSATION
+    private void showScientistConversation() {
+
+        showDialogue(
+            OutbreakIntro.scientistConversation(),
+            () -> showScreen("Level1")
+        );
+    }
+
+    // SHOW DIALOGUE PANEL
+    private void showDialogue(
+            String[][] lines,
+            Runnable afterDialogue) {
+
+        if (currentDialogue != null) {
+            screens.remove(currentDialogue);
+        }
+
+        currentDialogue = new OutbreakIntro.DialoguePanel(
+            selectedScientistIndex,
+            lines,
+            afterDialogue
+        );
+
+        screens.add(currentDialogue, "StoryDialogue");
+        showScreen("StoryDialogue");
+        currentDialogue.requestFocusInWindow();
+    }
+
+    // FIRST ENCOUNTER WITH AN ENEMY
+    public void showEnemyIntroduction(String enemyId) {
+
+        if (enemyId == null ||
+            introducedEnemies.contains(enemyId)) {
+            return;
+        }
+
+        OutbreakIntro story = OutbreakIntro.enemy(
+            enemyId,
+            () -> showScreen("Level1")
+        );
+
+        if (story == null) return;
+
+        introducedEnemies.add(enemyId);
+        showNarration(story);
+    }
+
+    // LEVEL 1 BOSS DEFEAT ENDING
+    public void showLevel1Ending() {
+
+        showDialogue(
+            OutbreakIntro.level1EndingConversation(),
+            () -> showNarration(
+                OutbreakIntro.level2Unlocked(
+                    () -> showScreen("Level1")
+                )
+            )
+        );
     }
 
     public void addScreen(String name, JPanel panel) {
@@ -446,6 +609,7 @@ public class Main extends JFrame {
     }
 
     public static void main(String[] args) {
+
         SwingUtilities.invokeLater(() -> {
             Main game = new Main();
             game.setVisible(true);
