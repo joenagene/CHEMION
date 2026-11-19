@@ -55,7 +55,9 @@ public class OutbreakIntro extends JPanel {
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (!SwingUtilities.isLeftMouseButton(e)) return;
+                if (!SwingUtilities.isLeftMouseButton(e)) {
+                    return;
+                }
 
                 if (e.getX() >= getWidth() / 2) {
                     nextScene();
@@ -69,7 +71,7 @@ public class OutbreakIntro extends JPanel {
     public static OutbreakIntro opening(Runnable onFinished) {
         return new OutbreakIntro(new Scene[] {
             new Scene(
-                "\"It began with a fever. Then came the silence.\"",
+                "It began with a fever. Then came the silence.",
                 "The elderly and the sick were among the first to fall. "
                 + "Within days, the infection spread throughout the town. "
                 + "But not everyone who turned became the same kind of monster.",
@@ -98,7 +100,9 @@ public class OutbreakIntro extends JPanel {
     }
 
     public static OutbreakIntro enemy(String enemyId, Runnable onFinished) {
-        if (enemyId == null) return null;
+        if (enemyId == null) {
+            return null;
+        }
 
         String heading;
         String body;
@@ -225,7 +229,9 @@ public class OutbreakIntro extends JPanel {
     }
 
     private void nextScene() {
-        if (!timer.isRunning()) return;
+        if (!timer.isRunning()) {
+            return;
+        }
 
         if (sceneIndex + 1 >= scenes.length) {
             finishNarration();
@@ -236,7 +242,9 @@ public class OutbreakIntro extends JPanel {
     }
 
     private void previousScene() {
-        if (!timer.isRunning() || sceneIndex == 0) return;
+        if (!timer.isRunning() || sceneIndex == 0) {
+            return;
+        }
 
         sceneIndex--;
         restartSceneTimer();
@@ -460,10 +468,10 @@ public class OutbreakIntro extends JPanel {
 
         private static final String[] PORTRAITS = {
             "dr. sebastian.png",
-            "dr. dutch.gif",
-            "dr. nicole.gif",
-            "dr. gene.gif",
-            "dr. elena.gif"
+            "dr. dutch.png",
+            "dr. nicole.png",
+            "dr. gene.png",
+            "dr. elena.png"
         };
 
         private final int scientistIndex;
@@ -485,7 +493,11 @@ public class OutbreakIntro extends JPanel {
                 String[][] lines,
                 Runnable onFinished) {
 
-            this.scientistIndex = scientistIndex;
+            this.scientistIndex = Math.max(
+                0,
+                Math.min(scientistIndex, SCIENTISTS.length - 1)
+            );
+
             this.lines = lines;
             this.onFinished = onFinished;
 
@@ -494,10 +506,8 @@ public class OutbreakIntro extends JPanel {
             setFocusable(true);
 
             scientistPortrait = loadPortrait(
-                "assets/portraits/" + PORTRAITS[scientistIndex],
-                "assets/portraits/" + PORTRAITS[scientistIndex].replace(".gif", ".png"),
-                "assets/characters/portraits/" + PORTRAITS[scientistIndex],
-                "assets/characters/portraits/" + PORTRAITS[scientistIndex].replace(".gif", ".png")
+                "assets/portraits/" + PORTRAITS[this.scientistIndex],
+                "assets/characters/portraits/" + PORTRAITS[this.scientistIndex]
             );
 
             labControlPortrait = loadPortrait(
@@ -592,12 +602,18 @@ public class OutbreakIntro extends JPanel {
         private static Image loadPortrait(String... paths) {
             for (String path : paths) {
                 File file = new File(path);
-                if (!file.isFile()) continue;
+
+                if (!file.isFile()) {
+                    continue;
+                }
 
                 try {
                     if (path.toLowerCase().endsWith(".png")) {
                         BufferedImage image = ImageIO.read(file);
-                        if (image == null) continue;
+
+                        if (image == null) {
+                            continue;
+                        }
 
                         if (image.getColorModel().hasAlpha()) {
                             int minX = image.getWidth();
@@ -607,7 +623,9 @@ public class OutbreakIntro extends JPanel {
 
                             for (int y = 0; y < image.getHeight(); y++) {
                                 for (int x = 0; x < image.getWidth(); x++) {
-                                    int alpha = (image.getRGB(x, y) >>> 24) & 0xff;
+                                    int alpha =
+                                        (image.getRGB(x, y) >>> 24) & 0xff;
+
                                     if (alpha > 12) {
                                         minX = Math.min(minX, x);
                                         minY = Math.min(minY, y);
@@ -619,33 +637,40 @@ public class OutbreakIntro extends JPanel {
 
                             if (maxX >= minX && maxY >= minY) {
                                 return image.getSubimage(
-                                    minX, minY,
+                                    minX,
+                                    minY,
                                     maxX - minX + 1,
                                     maxY - minY + 1
                                 );
                             }
                         }
+
                         return image;
                     }
 
-                    Image image = new ImageIcon(file.getAbsolutePath()).getImage();
-                    if (image.getWidth(null) > 0 && image.getHeight(null) > 0) {
+                    Image image =
+                        new ImageIcon(file.getAbsolutePath()).getImage();
+
+                    if (image.getWidth(null) > 0
+                            && image.getHeight(null) > 0) {
                         return image;
                     }
+
                 } catch (Exception ignored) {
                 }
             }
 
             System.err.println(
-                "Portrait not found. Checked: " + String.join(", ", paths)
+                "Portrait not found. Checked: "
+                + String.join(", ", paths)
             );
+
             return null;
         }
 
         private void updateLine() {
             scientistSpeaking =
-                lines[lineIndex][0]
-                    .equalsIgnoreCase("Scientist");
+                lines[lineIndex][0].equalsIgnoreCase("Scientist");
 
             speakerLabel.setText(
                 scientistSpeaking
@@ -659,9 +684,7 @@ public class OutbreakIntro extends JPanel {
                     : SwingConstants.LEFT
             );
 
-            dialogueText.setText(
-                lines[lineIndex][1]
-            );
+            dialogueText.setText(lines[lineIndex][1]);
 
             StyledDocument doc =
                 dialogueText.getStyledDocument();
@@ -823,20 +846,20 @@ public class OutbreakIntro extends JPanel {
 
             int iw = portrait.getWidth(this);
             int ih = portrait.getHeight(this);
-            if (iw <= 0 || ih <= 0) return;
 
-            boolean readyHalfBody = !onRight || scientistIndex == 0;
+            if (iw <= 0 || ih <= 0) {
+                return;
+            }
 
-            int sourceHeight = readyHalfBody
-                ? ih
-                : (ih > iw * 1.35 ? (int) (ih * 0.65) : ih);
-
-            int targetHeight =
-                (int) (getHeight() * (onRight ? 0.62 : 0.67));
+            int targetHeight = (int) (
+                getHeight() * (onRight ? 0.62 : 0.67)
+            );
 
             int targetWidth = Math.max(
                 1,
-                Math.round(iw * targetHeight / (float) sourceHeight)
+                Math.round(
+                    iw * targetHeight / (float) ih
+                )
             );
 
             int maxWidth = Math.max(
@@ -845,9 +868,12 @@ public class OutbreakIntro extends JPanel {
             );
 
             if (targetWidth > maxWidth) {
-                float scale = maxWidth / (float) targetWidth;
+                float scale =
+                    maxWidth / (float) targetWidth;
+
                 targetWidth = maxWidth;
-                targetHeight = Math.round(targetHeight * scale);
+                targetHeight =
+                    Math.round(targetHeight * scale);
             }
 
             int edgeMargin = 18;
@@ -857,13 +883,19 @@ public class OutbreakIntro extends JPanel {
                 ? getWidth() - targetWidth - edgeMargin
                 : edgeMargin;
 
-            int y = boxY + overlap - targetHeight;
+            int y =
+                boxY + overlap - targetHeight;
 
             g2.drawImage(
                 portrait,
-                x, y,
-                x + targetWidth, y + targetHeight,
-                0, 0, iw, sourceHeight,
+                x,
+                y,
+                x + targetWidth,
+                y + targetHeight,
+                0,
+                0,
+                iw,
+                ih,
                 this
             );
         }
