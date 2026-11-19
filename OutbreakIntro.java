@@ -2,10 +2,12 @@
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.font.*;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.text.*;
 import java.util.ArrayList;
 import java.util.List;
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.text.*;
 
@@ -457,7 +459,7 @@ public class OutbreakIntro extends JPanel {
         };
 
         private static final String[] PORTRAITS = {
-            "dr. sebastian.gif",
+            "dr. sebastian.png",
             "dr. dutch.gif",
             "dr. nicole.gif",
             "dr. gene.gif",
@@ -492,16 +494,16 @@ public class OutbreakIntro extends JPanel {
             setFocusable(true);
 
             scientistPortrait = loadPortrait(
-                "assets/characters/portraits/"
-                    + PORTRAITS[scientistIndex],
-
-                "assets/characters/portraits/"
-                    + PORTRAITS[scientistIndex]
-                        .replace(".gif", ".png")
+                "assets/portraits/" + PORTRAITS[scientistIndex],
+                "assets/portraits/" + PORTRAITS[scientistIndex].replace(".gif", ".png"),
+                "assets/characters/portraits/" + PORTRAITS[scientistIndex],
+                "assets/characters/portraits/" + PORTRAITS[scientistIndex].replace(".gif", ".png")
             );
 
             labControlPortrait = loadPortrait(
+                "assets/portraits/lab_control.png",
                 "assets/characters/portraits/lab_control.png",
+                "assets/portraits/lab_control.gif",
                 "assets/characters/portraits/lab_control.gif"
             );
 
@@ -590,19 +592,53 @@ public class OutbreakIntro extends JPanel {
         private static Image loadPortrait(String... paths) {
             for (String path : paths) {
                 File file = new File(path);
+                if (!file.isFile()) continue;
 
-                if (file.isFile()) {
-                    Image image = new ImageIcon(
-                        file.getAbsolutePath()
-                    ).getImage();
+                try {
+                    if (path.toLowerCase().endsWith(".png")) {
+                        BufferedImage image = ImageIO.read(file);
+                        if (image == null) continue;
 
-                    if (image.getWidth(null) > 0
-                            && image.getHeight(null) > 0) {
+                        if (image.getColorModel().hasAlpha()) {
+                            int minX = image.getWidth();
+                            int minY = image.getHeight();
+                            int maxX = -1;
+                            int maxY = -1;
+
+                            for (int y = 0; y < image.getHeight(); y++) {
+                                for (int x = 0; x < image.getWidth(); x++) {
+                                    int alpha = (image.getRGB(x, y) >>> 24) & 0xff;
+                                    if (alpha > 12) {
+                                        minX = Math.min(minX, x);
+                                        minY = Math.min(minY, y);
+                                        maxX = Math.max(maxX, x);
+                                        maxY = Math.max(maxY, y);
+                                    }
+                                }
+                            }
+
+                            if (maxX >= minX && maxY >= minY) {
+                                return image.getSubimage(
+                                    minX, minY,
+                                    maxX - minX + 1,
+                                    maxY - minY + 1
+                                );
+                            }
+                        }
                         return image;
                     }
+
+                    Image image = new ImageIcon(file.getAbsolutePath()).getImage();
+                    if (image.getWidth(null) > 0 && image.getHeight(null) > 0) {
+                        return image;
+                    }
+                } catch (Exception ignored) {
                 }
             }
 
+            System.err.println(
+                "Portrait not found. Checked: " + String.join(", ", paths)
+            );
             return null;
         }
 
@@ -746,12 +782,6 @@ public class OutbreakIntro extends JPanel {
                     scientistSpeaking,
                     boxY
                 );
-            } else {
-                drawPlaceholder(
-                    g2,
-                    scientistSpeaking,
-                    boxY
-                );
             }
 
             g2.setColor(
@@ -793,91 +823,48 @@ public class OutbreakIntro extends JPanel {
 
             int iw = portrait.getWidth(this);
             int ih = portrait.getHeight(this);
-
             if (iw <= 0 || ih <= 0) return;
 
-            int sourceHeight = ih > iw * 1.35
-                ? (int) (ih * 0.65)
-                : ih;
+            boolean readyHalfBody = !onRight || scientistIndex == 0;
 
-            int targetHeight = Math.min(
-                (int) (getHeight() * 0.88),
-                boxY + 70
-            );
+            int sourceHeight = readyHalfBody
+                ? ih
+                : (ih > iw * 1.35 ? (int) (ih * 0.65) : ih);
+
+            int targetHeight =
+                (int) (getHeight() * (onRight ? 0.62 : 0.67));
 
             int targetWidth = Math.max(
                 1,
-                Math.round(
-                    iw * targetHeight / (float) sourceHeight
-                )
+                Math.round(iw * targetHeight / (float) sourceHeight)
             );
 
             int maxWidth = Math.max(
                 120,
-                (int) (getWidth() * 0.48)
+                (int) (getWidth() * 0.42)
             );
 
             if (targetWidth > maxWidth) {
-                float factor =
-                    maxWidth / (float) targetWidth;
-
+                float scale = maxWidth / (float) targetWidth;
                 targetWidth = maxWidth;
-                targetHeight =
-                    Math.round(targetHeight * factor);
+                targetHeight = Math.round(targetHeight * scale);
             }
 
-            int x = onRight
-                ? getWidth() - targetWidth
-                : 0;
+            int edgeMargin = 18;
+            int overlap = 55;
 
-            int y = boxY - targetHeight + 70;
+            int x = onRight
+                ? getWidth() - targetWidth - edgeMargin
+                : edgeMargin;
+
+            int y = boxY + overlap - targetHeight;
 
             g2.drawImage(
                 portrait,
-                x,
-                y,
-                x + targetWidth,
-                y + targetHeight,
-                0,
-                0,
-                iw,
-                sourceHeight,
+                x, y,
+                x + targetWidth, y + targetHeight,
+                0, 0, iw, sourceHeight,
                 this
-            );
-        }
-
-        private void drawPlaceholder(
-                Graphics2D g2,
-                boolean onRight,
-                int boxY) {
-
-            int centerX = onRight
-                ? getWidth() - 115
-                : 115;
-
-            int headY = Math.max(
-                20,
-                boxY - 295
-            );
-
-            g2.setColor(
-                new Color(110, 75, 155, 135)
-            );
-
-            g2.fillOval(
-                centerX - 50,
-                headY,
-                100,
-                120
-            );
-
-            g2.fillRoundRect(
-                centerX - 112,
-                headY + 104,
-                224,
-                245,
-                90,
-                90
             );
         }
     }

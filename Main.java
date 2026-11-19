@@ -614,5 +614,6 @@ public class Main extends JFrame {
             Main game = new Main();
             game.setVisible(true);
         });
+        
     }
 }
