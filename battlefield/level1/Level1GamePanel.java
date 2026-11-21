@@ -143,11 +143,13 @@ public class Level1GamePanel extends JPanel {
         Rectangle button() { return new Rectangle(x + 311, y + buttonY, 96, 25); }
     }
 
-    public Level1GamePanel() { this("nicole", null, null); }
-    public Level1GamePanel(String scientist) { this(scientist, null, null); }
-    public Level1GamePanel(String scientist, Runnable onWin) { this(scientist, onWin, null); }
+    // The selected scientist must come from Main -> Character Selection.
+    // No default character or standalone battlefield testing constructor.
     public Level1GamePanel(String scientist, Runnable onWin, Runnable onMenu) {
-        this.scientist = scientist == null ? "nicole" : scientist.toLowerCase(Locale.ROOT);
+        if (scientist == null || scientist.trim().isEmpty()) {
+            throw new IllegalArgumentException("A scientist must be selected in Character Selection.");
+        }
+        this.scientist = scientist.trim().toLowerCase(Locale.ROOT);
         this.onWin = onWin; this.onMenu = onMenu;
         setPreferredSize(new Dimension(1280, 720));
         setBackground(new Color(20, 15, 33));
@@ -1768,12 +1770,15 @@ public class Level1GamePanel extends JPanel {
             cache.put(img, result); return result;
         }
     }
+    // Running this file launches the full game, never a standalone test battlefield.
+    // Main is in the default package, so a packaged class calls it by reflection.
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            JFrame f = new JFrame("CHEMION - Level 1: Abandoned Town");
-            f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            f.setContentPane(new Level1GamePanel(args.length > 0 ? args[0] : "nicole"));
-            f.pack(); f.setLocationRelativeTo(null); f.setVisible(true);
-        });
+        try {
+            Class<?> mainMenu = Class.forName("Main");
+            mainMenu.getMethod("main", String[].class).invoke(null, (Object) args);
+        } catch (ReflectiveOperationException e) {
+            System.err.println("Could not open CHEMION Main Menu. Compile Main.java and its dependencies first.");
+            e.printStackTrace();
+        }
     }
 }
