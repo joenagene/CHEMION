@@ -1,4 +1,5 @@
 
+import battlefield.level1.Level1GamePanel;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -15,7 +16,8 @@ public class Main extends JFrame {
     private final JPanel screens = new JPanel(cardLayout);
 
     private Clip menuMusic;
-    private JPanel currentLevel1;
+    private Level1GamePanel currentLevel1;
+    private boolean endingShown;
     private OutbreakIntro currentIntro;
     private OutbreakIntro.DialoguePanel currentDialogue;
     private final Set<String> introducedEnemies = new HashSet<>();
@@ -369,24 +371,166 @@ public class Main extends JFrame {
         }
     }
 
+    // SELECTED SCIENTIST SPRITE FOLDERS
+    private static final String[] SCIENTIST_SPRITE_KEYS = {
+        "sebastian", "dutch", "nicole", "gene", "elena"
+    };
+
     // START GAME -> INTRO -> CONVERSATION -> LEVEL 1
     public void startNewGame(int characterIndex) {
 
-        String[] scientists = {
-            "DR. SEBASTIAN",
-            "DR. DUTCH",
-            "DR. NICOLE",
-            "DR. GENE",
-            "DR. ELENA"
-        };
-
         if (characterIndex < 0 ||
-            characterIndex >= scientists.length) {
+            characterIndex >= SCIENTIST_SPRITE_KEYS.length) {
             return;
         }
 
         selectedScientistIndex = characterIndex;
         introducedEnemies.clear();
+        endingShown = false;
+
+        // REMOVE PREVIOUS INTRO
+        if (currentIntro != null) {
+            currentIntro.stop();
+            screens.remove(currentIntro);
+            currentIntro = null;
+        }
+
+        // REMOVE PREVIOUS DIALOGUE
+        if (currentDialogue != null) {
+            screens.remove(currentDialogue);
+            currentDialogue = null;
+        }
+
+        // REMOVE PREVIOUS LEVEL
+        if (currentLevel1 != null) {
+            currentLevel1.disposeGame();
+            screens.remove(currentLevel1);
+            currentLevel1 = null;
+        }
+
+        // SHOW ORIGINAL OUTBREAK INTRO
+        showNarration(
+            OutbreakIntro.opening(
+                this::showScientistConversation
+            )
+        );
+    }
+
+    // LOAD ACTUAL LEVEL 1 BATTLEFIELD
+    private void enterLevel1() {
+
+        if (currentLevel1 != null) {
+            currentLevel1.disposeGame();
+            screens.remove(currentLevel1);
+        }
+
+        // USE THE CHARACTER SELECTED BY THE PLAYER
+        String scientistKey =
+            resolveScientistSpriteKey(selectedScientistIndex);
+
+        currentLevel1 = new Level1GamePanel(
+            scientistKey,
+            this::showLevel1Ending,
+            this::returnToMainMenu
+        );
+
+        // CTRL + M RETURNS TO MAIN MENU
+        // NORMAL M STILL OPENS THE CHEMISTRY LAB
+        currentLevel1.getInputMap(
+            JComponent.WHEN_IN_FOCUSED_WINDOW
+        ).put(
+            KeyStroke.getKeyStroke(
+                KeyEvent.VK_M,
+                InputEvent.CTRL_DOWN_MASK
+            ),
+            "level1BackToMenu"
+        );
+
+        currentLevel1.getActionMap().put(
+            "level1BackToMenu",
+            new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+
+                    int choice =
+                        JOptionPane.showConfirmDialog(
+                            Main.this,
+                            "Return to the main menu? " +
+                            "Current Level 1 progress will be lost.",
+                            "Leave Level 1",
+                            JOptionPane.YES_NO_OPTION
+                        );
+
+                    if (choice == JOptionPane.YES_OPTION) {
+                        returnToMainMenu();
+                    }
+                }
+            }
+        );
+
+        screens.add(currentLevel1, "Level1");
+        showScreen("Level1");
+
+        SwingUtilities.invokeLater(() -> {
+            if (currentLevel1 != null) {
+                currentLevel1.requestFocusInWindow();
+            }
+        });
+    }
+
+    // FIND THE SELECTED SCIENTIST'S SPRITE FOLDER
+    private String resolveScientistSpriteKey(int index) {
+
+        String key = SCIENTIST_SPRITE_KEYS[index];
+
+        File characters = new File("assets/characters");
+
+        if (!characters.isDirectory()) {
+            characters = new File("../assets/characters");
+        }
+
+        if (!characters.isDirectory()) {
+            System.err.println(
+                "Character sprites folder missing: assets/characters"
+            );
+            return key;
+        }
+
+        if (new File(characters, key).isDirectory()) {
+            return key;
+        }
+
+        File[] folders =
+            characters.listFiles(File::isDirectory);
+
+        if (folders != null) {
+            for (File folder : folders) {
+
+                String normalized =
+                    folder.getName()
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .replaceAll("[^a-z0-9]", "");
+
+                if (normalized.equals("dr" + key) ||
+                    normalized.equals(key + "sprites") ||
+                    normalized.equals(key + "sprite")) {
+
+                    return folder.getName();
+                }
+            }
+        }
+
+        System.err.println(
+            "No sprite folder found for " + key +
+            ". Expected assets/characters/" +
+            key + "/walk/*.png"
+        );
+
+        return key;
+    }
+
+    // RETURN TO MAIN MENU
+    private void returnToMainMenu() {
 
         if (currentIntro != null) {
             currentIntro.stop();
@@ -400,133 +544,18 @@ public class Main extends JFrame {
         }
 
         if (currentLevel1 != null) {
+            currentLevel1.disposeGame();
             screens.remove(currentLevel1);
             currentLevel1 = null;
         }
 
-        JPanel level1 = new JPanel(new GridBagLayout());
-        level1.setBackground(new Color(16, 12, 32));
+        screens.revalidate();
+        screens.repaint();
 
-        JPanel content = new JPanel();
-        content.setOpaque(false);
-        content.setLayout(
-            new BoxLayout(content, BoxLayout.Y_AXIS)
-        );
-
-        JLabel title = new JLabel(
-            "LEVEL 1 - ABANDONED TOWN"
-        );
-
-        title.setForeground(new Color(235, 150, 255));
-        title.setFont(new Font(
-            "Press Start 2P", Font.BOLD, 17
-        ));
-        title.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JLabel scientist = new JLabel(
-            "Selected: " + scientists[characterIndex]
-        );
-
-        scientist.setForeground(new Color(235, 212, 255));
-        scientist.setFont(new Font(
-            "Press Start 2P", Font.PLAIN, 12
-        ));
-        scientist.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JButton back = new JButton("BACK TO MAIN MENU");
-        back.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        back.addActionListener(
-            e -> showScreen("MainMenu")
-        );
-
-        content.add(title);
-        content.add(Box.createVerticalStrut(24));
-        content.add(scientist);
-        content.add(Box.createVerticalStrut(48));
-        content.add(back);
-
-        level1.add(content);
-
-        // TEMPORARY TEST SHORTCUTS
-        // 1 = Common Zombie
-        // 2 = Runner Zombie
-        // 3 = Crawler Zombie
-        // 4 = Mutated Survivor
-        // B = Level 1 ending
-
-        bindStoryKey(
-            level1,
-            KeyEvent.VK_1,
-            "common",
-            () -> showEnemyIntroduction("common_zombie")
-        );
-
-        bindStoryKey(
-            level1,
-            KeyEvent.VK_2,
-            "runner",
-            () -> showEnemyIntroduction("runner_zombie")
-        );
-
-        bindStoryKey(
-            level1,
-            KeyEvent.VK_3,
-            "crawler",
-            () -> showEnemyIntroduction("crawler_zombie")
-        );
-
-        bindStoryKey(
-            level1,
-            KeyEvent.VK_4,
-            "boss",
-            () -> showEnemyIntroduction("mutated_survivor")
-        );
-
-        bindStoryKey(
-            level1,
-            KeyEvent.VK_B,
-            "ending",
-            this::showLevel1Ending
-        );
-
-        currentLevel1 = level1;
-        screens.add(level1, "Level1");
-
-        // OPENING NARRATION FROM OutbreakIntro.java
-        showNarration(
-            OutbreakIntro.opening(
-                this::showScientistConversation
-            )
-        );
+        showScreen("MainMenu");
     }
 
-    // KEYBOARD SHORTCUTS FOR STORY TESTING
-    private void bindStoryKey(
-            JPanel panel,
-            int keyCode,
-            String actionName,
-            Runnable action) {
-
-        panel.getInputMap(
-            JComponent.WHEN_IN_FOCUSED_WINDOW
-        ).put(
-            KeyStroke.getKeyStroke(keyCode, 0),
-            actionName
-        );
-
-        panel.getActionMap().put(
-            actionName,
-            new AbstractAction() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    action.run();
-                }
-            }
-        );
-    }
-
-    // SHOW CENTERED NARRATION
+    // SHOW NARRATION
     private void showNarration(OutbreakIntro narration) {
 
         if (narration == null) return;
@@ -548,7 +577,7 @@ public class Main extends JFrame {
 
         showDialogue(
             OutbreakIntro.scientistConversation(),
-            () -> showScreen("Level1")
+            this::enterLevel1
         );
     }
 
@@ -561,11 +590,12 @@ public class Main extends JFrame {
             screens.remove(currentDialogue);
         }
 
-        currentDialogue = new OutbreakIntro.DialoguePanel(
-            selectedScientistIndex,
-            lines,
-            afterDialogue
-        );
+        currentDialogue =
+            new OutbreakIntro.DialoguePanel(
+                selectedScientistIndex,
+                lines,
+                afterDialogue
+            );
 
         screens.add(currentDialogue, "StoryDialogue");
         showScreen("StoryDialogue");
@@ -594,6 +624,10 @@ public class Main extends JFrame {
     // LEVEL 1 BOSS DEFEAT ENDING
     public void showLevel1Ending() {
 
+        if (endingShown) return;
+
+        endingShown = true;
+
         showDialogue(
             OutbreakIntro.level1EndingConversation(),
             () -> showNarration(
@@ -614,6 +648,5 @@ public class Main extends JFrame {
             Main game = new Main();
             game.setVisible(true);
         });
-        
     }
 }
