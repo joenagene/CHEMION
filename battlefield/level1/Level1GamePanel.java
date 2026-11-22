@@ -1,15 +1,20 @@
 package battlefield.level1;
 
+import game.GameplayBridge;
+import game.GameManager;
+import game.Reward;
+
+import javax.swing.*;
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.Properties;
 import java.util.*;
 import java.util.List;
-import javax.imageio.ImageIO;
-import javax.swing.*;
 
 public class Level1GamePanel extends JPanel {
     private static final int W = 960, H = 540, WORLD = 3200;
@@ -160,6 +165,7 @@ public class Level1GamePanel extends JPanel {
             throw new IllegalArgumentException("A scientist must be selected in Character Selection.");
         }
         this.scientist = scientist.trim().toLowerCase(Locale.ROOT);
+        GameplayBridge.startLevel(1, this.scientist);
         this.onWin = onWin; this.onMenu = onMenu;
         setPreferredSize(new Dimension(1280, 720));
         setBackground(new Color(20, 15, 33));
@@ -249,6 +255,9 @@ public class Level1GamePanel extends JPanel {
         p.setProperty("level1.throwCooldown", Integer.toString(throwCooldown));
         p.setProperty("level1.medkits", Integer.toString(medkits));
         p.setProperty("level1.xp", Integer.toString(xp));
+        if (GameManager.getInstance().getPlayer() != null)
+            p.setProperty("level1.researchPoints", Integer.toString(
+                GameManager.getInstance().getPlayer().getResearchPoints()));
         p.setProperty("level1.coins", Integer.toString(coins));
         p.setProperty("level1.wave", Integer.toString(wave));
         p.setProperty("level1.spawned", Integer.toString(spawned));
@@ -282,7 +291,7 @@ public class Level1GamePanel extends JPanel {
                 .append(',').append(shot.t).append(',').append(shot.arc);
         }
         p.setProperty("level1.projectiles", projectileData.toString());
-        SaveManager.save(p);
+        GameManager.getInstance().saveProgress(() -> SaveManager.save(p));
     }
 
     /** Restore a saved battle without replaying the opening cutscene. */
@@ -347,6 +356,8 @@ public class Level1GamePanel extends JPanel {
                 shot.t = Double.parseDouble(fields[6]);
                 shots.add(shot);
             }
+            GameplayBridge.restoreScientistProgress(xp, coins,
+                readInt(p, "level1.researchPoints", 0), hp, px, py);
             paused = false; lab = false; journal = false; encounter = false;
             pressed.clear();
             message("Welcome back! Level 1 progress restored.");
@@ -854,6 +865,7 @@ public class Level1GamePanel extends JPanel {
         if (z.type == 1) { stock[0] += 5; stock[5] += 9; stock[1] += 12; }
         if (z.type == 2) { stock[4] += 8; stock[1] += 10; }
         if (z.type == 3) { stock[0] += 8; stock[5] += 8; stock[4] += 8; }
+        GameplayBridge.scan(1, z.type, CHEMS[RECIPES[z.type][0]]);
         encounterType = target = z.type;
         batchQty = 1; Arrays.fill(selected, false);
         encountered = z; encounter = true;
@@ -882,12 +894,14 @@ public class Level1GamePanel extends JPanel {
         if (pressed.contains(KeyEvent.VK_W) || pressed.contains(KeyEvent.VK_UP)) dy--;
         if (pressed.contains(KeyEvent.VK_S) || pressed.contains(KeyEvent.VK_DOWN)) dy++;
         if (dx != 0 || dy != 0) {
+            double oldX = px, oldY = py;
             double len = Math.hypot(dx, dy);
             double speed = pressed.contains(KeyEvent.VK_SHIFT) ? 3.2 : 2.15;
             dx = dx / len * speed; dy = dy / len * speed;
             facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up");
             if (walkable(px + dx, py)) px += dx;
             if (walkable(px, py + dy)) py += dy;
+            GameplayBridge.recordMovement(oldX, oldY, px, py);
         }
         camera = clamp(px - 270, 0, WORLD - W);
         boolean entering = false;
@@ -923,7 +937,7 @@ public class Level1GamePanel extends JPanel {
             if (d < 34 && z.attackCooldown == 0) {
                 z.attackCooldown = 105;
                 if (hurtTicks == 0) {
-                    hp -= z.type == 3 ? 17 : 8;
+                    hp = GameplayBridge.damagePlayer(hp, GameplayBridge.attackDamage(1, z.type));
                     hurtTicks = 50; // red blinking
                     message("You were hit! Press H to heal.");
                     if (hp <= 0) { hp = 0; dead = true; }
@@ -936,14 +950,17 @@ public class Level1GamePanel extends JPanel {
             if (p.t >= 1) {
                 shots.remove(p);
                 Enemy z = p.enemy;
-                if (p.type == z.type) {
-                    z.hp -= 2; z.flash = 14;
+                double beforeTreatment = z.hp;
+                z.hp = GameplayBridge.applyTreatment(1, z.type, (int) Math.ceil(z.hp), p.type);
+                if (z.hp < beforeTreatment) {
+                    z.flash = 14;
                     if (z.hp <= 0) {
                         enemies.remove(z); stabilized[z.type]++; reward();
                         if (z.type == 3) {
                             won = true;
                             message("Mutated Survivor stabilized! Level 1 complete.");
                             try {
+                                GameplayBridge.completeLevel(1);
                                 SaveManager.markCompleted(1);
                                 saveProgress();
                             } catch (IOException ex) {
@@ -960,17 +977,20 @@ public class Level1GamePanel extends JPanel {
     }
     private void reward() {
         // Every stabilized zombie awards coins: the shop must remain useful.
-        coins += 5;
+        int[] initialReward = GameplayBridge.award(xp, coins, new Reward(0, 5, null, 0));
+        xp = initialReward[0]; coins = initialReward[1];
         if (random.nextDouble() >= .55) {
             message("Zombie stabilized! +5 coins");
             return;
         }
         int roll = random.nextInt(3);
         if (roll == 0) {
-            xp += 10;
+            int[] extraReward = GameplayBridge.award(xp, coins, new Reward(10, 0, null, 0));
+            xp = extraReward[0]; coins = extraReward[1];
             message("Zombie stabilized! +5 coins, +10 XP");
         } else if (roll == 1) {
-            coins += 5;
+            int[] extraReward = GameplayBridge.award(xp, coins, new Reward(0, 5, null, 0));
+            xp = extraReward[0]; coins = extraReward[1];
             message("Zombie stabilized! +10 coins");
         } else {
             int[] pool = {1, 0, seen[1] ? 5 : 1, seen[2] ? 4 : 1};
@@ -989,8 +1009,9 @@ public class Level1GamePanel extends JPanel {
                     + price + ", have " + coins + ".";
             return false;
         }
-        coins -= price;
-        stock[ingredient]++;
+        int updatedCoins = GameplayBridge.buy(coins, CHEMS, stock, ingredient, price);
+        if (updatedCoins < 0) return false;
+        coins = updatedCoins;
         labNotice = "Purchased 1 " + CHEMS[ingredient] + " for " + price
                 + " coins. Owned: " + stock[ingredient] + ".";
         return true;
@@ -1001,31 +1022,13 @@ public class Level1GamePanel extends JPanel {
     // This fixes crafting Common after Runner (and vice versa) without
     // requiring the player to manually switch treatment tabs first.
     private int detectedRecipe() {
-        for (int recipe = 0; recipe < RECIPES.length; recipe++) {
-            // Recognition depends only on the ingredients, not the previous potion or selected tab.
-            boolean matches = true;
-            for (int ingredient = 0; ingredient < selected.length; ingredient++) {
-                boolean needed = false;
-                for (int required : RECIPES[recipe]) {
-                    if (required == ingredient) { needed = true; break; }
-                }
-                if (selected[ingredient] != needed) {
-                    matches = false;
-                    break;
-                }
-            }
-            if (matches) return recipe;
-        }
-        return -1;
+        return GameplayBridge.detectRecipe(1, CHEMS, RECIPES, NAMES, selected);
     }
 
     private boolean correctRecipe() { return detectedRecipe() >= 0; }
 
     private int maxBatch(int recipe) {
-        int max = Integer.MAX_VALUE;
-        for (int ingredient : RECIPES[recipe])
-            max = Math.min(max, stock[ingredient]);
-        return Math.max(0, max);
+        return GameplayBridge.maxBatch(1, CHEMS, RECIPES, NAMES, stock, recipe);
     }
 
     // Use the identified recipe's ingredients for MAX and quantity controls.
@@ -1059,7 +1062,10 @@ public class Level1GamePanel extends JPanel {
         }
     }
 
-    private int craftingSeconds(int t) { return t == 3 ? 60 : t == 2 ? 45 : t == 1 ? 35 : 25; }
+    private int craftingSeconds(int t) {
+        return (t == 3 ? 60 : t == 2 ? 45 : t == 1 ? 35 : 25)
+                + GameplayBridge.craftingBonus(scientist);
+    }
     private void openLab() {
         boolean any = false;
         for (boolean b : seen) if (b) any = true;
@@ -1089,9 +1095,11 @@ public class Level1GamePanel extends JPanel {
         }
         // Each potion uses one of EACH ingredient in the identified recipe.
         // No arbitrary limit on total vials; inventory is the only limit.
-        for (int ingredient : RECIPES[recipe]) stock[ingredient] -= batchQty;
-        vials[recipe] += batchQty;
-        unlockedRecipes[recipe] = true;
+        if (!GameplayBridge.craft(1, CHEMS, RECIPES, NAMES, stock, vials,
+                unlockedRecipes, recipe, batchQty)) {
+            labNotice = "Crafting failed. Check your ingredients and quantity.";
+            return;
+        }
         target = recipe;
         equipped = recipe;
         lab = false;
@@ -1113,7 +1121,8 @@ public class Level1GamePanel extends JPanel {
     }
     private void heal() {
         if (!canPlay() || medkits == 0 || hp >= 100) return;
-        medkits--; hp = Math.min(100, hp + 35); message("Medkit used. +35 HP.");
+        medkits--; hp = GameplayBridge.useMedkit(hp, scientist);
+        message("Medkit used. Health restored.");
     }
     private Enemy autoTarget() {
         Enemy best = null; double score = Double.POSITIVE_INFINITY;

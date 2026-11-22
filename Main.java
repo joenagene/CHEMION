@@ -1,6 +1,4 @@
 
-import battlefield.level1.Level1GamePanel;
-import battlefield.level1.SaveManager;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -12,6 +10,11 @@ import java.util.Set;
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
+import battlefield.level1.Level1GamePanel;
+import battlefield.level1.SaveManager;
+import game.GameManager;
+import game.Scientist;
+import battlefield.level2.Level2GamePanel;
 
 public class Main extends JFrame {
 
@@ -20,13 +23,14 @@ public class Main extends JFrame {
 
     private Clip menuMusic;
     private Level1GamePanel currentLevel1;
+    private Level2GamePanel currentLevel2;
+    private boolean level2EndingShown;
     private boolean endingShown;
     private OutbreakIntro currentIntro;
     private OutbreakIntro.DialoguePanel currentDialogue;
     // Level 2 has its own cinematic intro and conversation, separate from Level 1.
     private OutbreakIntro2 currentIntro2;
     private OutbreakIntro2.DialoguePanel currentLevel2Dialogue;
-    private JPanel level2EndScreen;
     private JPanel levelSelection;
     private boolean exploreFromLevelSelection;
     private final Set<String> introducedEnemies = new HashSet<>();
@@ -436,6 +440,10 @@ public class Main extends JFrame {
         exploreFromLevelSelection = false;
 
         selectedScientistIndex = characterIndex;
+        GameManager.getInstance().resetProgress();
+        GameManager.getInstance().restoreUnlocks(SaveManager.highestUnlockedLevel());
+        GameManager.getInstance().startGame(Scientist.forKey(
+            SCIENTIST_SPRITE_KEYS[characterIndex]));
         introducedEnemies.clear();
         endingShown = false;
 
@@ -553,11 +561,12 @@ public class Main extends JFrame {
                 showScreen("CharacterSelection");
             }
         } else if (level == 2) {
-            // Level 2 can be selected only after Level 1 is completed.
-            // Restore the scientist chosen in the saved Level 1 run.
+            // Resume an unfinished hospital run without repeating the intro.
+            // Otherwise start the mysterious Level 2 narration and conversation.
             int savedIndex = findSavedScientistIndex();
             if (savedIndex >= 0) selectedScientistIndex = savedIndex;
-            startLevel2Intro();
+            if (hasSavedLevel2()) enterLevel2(true);
+            else startLevel2Intro();
         } else {
             // Levels 3-5 still have no connected battlefield or intro.
             JOptionPane.showMessageDialog(this,
@@ -581,6 +590,12 @@ public class Main extends JFrame {
     }
 
     private void confirmExitApplication() {
+        if (currentLevel2 != null) {
+            // Use the existing purple Game Menu; never stack a white dialog on it.
+            currentLevel2.openPauseMenu();
+            showScreen("Level2");
+            return;
+        }
         if (currentLevel1 != null) {
             String[] options = {"SAVE & EXIT", "EXIT WITHOUT SAVING", "CANCEL"};
             int choice = JOptionPane.showOptionDialog(this,
@@ -637,6 +652,7 @@ public class Main extends JFrame {
     }
 
     private void returnToMainMenu() {
+        GameManager.getInstance().endGame();
         clearLevel2Screens();
         if (currentIntro != null) {
             currentIntro.stop();
@@ -784,7 +800,7 @@ public class Main extends JFrame {
         currentLevel2Dialogue = new OutbreakIntro2.DialoguePanel(
             selectedScientistIndex,
             OutbreakIntro2.scientistConversation(),
-            this::showLevel2EndScreen
+            () -> enterLevel2(false)
         );
         screens.add(currentLevel2Dialogue, "Level2Conversation");
         screens.revalidate();
@@ -795,59 +811,103 @@ public class Main extends JFrame {
         });
     }
 
-    // The Level 2 battlefield is not implemented in the supplied project yet.
-    // End at an in-game screen instead of launching a missing class or white dialog.
-    private void showLevel2EndScreen() {
-        if (currentLevel2Dialogue != null) {
-            screens.remove(currentLevel2Dialogue);
-            currentLevel2Dialogue = null;
+    // The Level 2 battlefield uses the same scientist as Level 1 and has
+    // its own enemies, map, lab, research journal and persistent checkpoints.
+    private static boolean hasSavedLevel2() {
+        Properties p = SaveManager.load();
+        return "true".equals(p.getProperty("level2.started"))
+            && !"true".equals(p.getProperty("level2.won"))
+            && p.getProperty("scientist") != null;
+    }
+
+    private void enterLevel2(boolean restore) {
+        if (SaveManager.highestUnlockedLevel() < 2) {
+            showLevelSelection();
+            return;
         }
-        if (level2EndScreen != null) screens.remove(level2EndScreen);
+        int savedIndex = findSavedScientistIndex();
+        if (savedIndex >= 0) selectedScientistIndex = savedIndex;
+        clearLevel2Screens();
+        if (currentLevel1 != null) {
+            currentLevel1.disposeGame();
+            screens.remove(currentLevel1);
+            currentLevel1 = null;
+        }
+        level2EndingShown = false;
 
-        JPanel page = new JPanel(new GridBagLayout());
-        page.setBackground(new Color(15, 11, 29));
-        JPanel content = new JPanel();
-        content.setOpaque(false);
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-
-        JLabel heading = new JLabel("LEVEL 2: CONTAMINATED HOSPITAL");
-        heading.setForeground(new Color(217, 167, 255));
-        heading.setFont(new Font("Monospaced", Font.BOLD, 22));
-        heading.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JLabel message = new JLabel("The mystery begins here. Level 2 gameplay is not connected yet.");
-        message.setForeground(new Color(214, 207, 229));
-        message.setFont(new Font("SansSerif", Font.PLAIN, 15));
-        message.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        PixelButton selectButton = new PixelButton("LEVEL SELECT");
-        selectButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        selectButton.setMaximumSize(new Dimension(290, 55));
-        selectButton.setPreferredSize(new Dimension(290, 55));
-        selectButton.addActionListener(e -> showLevelSelection());
-
-        PixelButton menuButton = new PixelButton("MAIN MENU");
-        menuButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        menuButton.setMaximumSize(new Dimension(290, 55));
-        menuButton.setPreferredSize(new Dimension(290, 55));
-        menuButton.addActionListener(e -> returnToMainMenu());
-
-        content.add(heading);
-        content.add(Box.createVerticalStrut(24));
-        content.add(message);
-        content.add(Box.createVerticalStrut(32));
-        content.add(selectButton);
-        content.add(Box.createVerticalStrut(12));
-        content.add(menuButton);
-        page.add(content);
-
-        level2EndScreen = page;
-        screens.add(level2EndScreen, "Level2End");
+        currentLevel2 = new Level2GamePanel(
+            resolveScientistSpriteKey(selectedScientistIndex),
+            this::showLevel2Ending,
+            this::returnToMainMenu
+        );
+        if (restore) {
+            if (!currentLevel2.loadProgress()) {
+                currentLevel2.disposeGame();
+                currentLevel2 = null;
+                JOptionPane.showMessageDialog(this,
+                    "Level 2 save could not be restored. Your saved data was not overwritten.",
+                    "Load Failed", JOptionPane.WARNING_MESSAGE);
+                showLevelSelection();
+                return;
+            }
+        } else {
+            try {
+                currentLevel2.saveProgress();
+            } catch (IOException e) {
+                currentLevel2.disposeGame();
+                currentLevel2 = null;
+                JOptionPane.showMessageDialog(this,
+                    "Could not initialize the Level 2 save:\n" + e.getMessage(),
+                    "Save Failed", JOptionPane.ERROR_MESSAGE);
+                showLevelSelection();
+                return;
+            }
+        }
+        screens.add(currentLevel2, "Level2");
         screens.revalidate();
-        showScreen("Level2End");
+        showScreen("Level2");
+        SwingUtilities.invokeLater(() -> {
+            if (currentLevel2 != null) currentLevel2.requestFocusInWindow();
+        });
+    }
+
+    // Plague Doctor defeat -> ending conversation -> Level 3 unlock narration.
+    private void showLevel2Ending() {
+        if (level2EndingShown) return;
+        level2EndingShown = true;
+        if (currentLevel2 != null) {
+            currentLevel2.disposeGame();
+            screens.remove(currentLevel2);
+            currentLevel2 = null;
+        }
+        if (currentLevel2Dialogue != null) screens.remove(currentLevel2Dialogue);
+        currentLevel2Dialogue = new OutbreakIntro2.DialoguePanel(
+            selectedScientistIndex,
+            OutbreakIntro2.level2EndingConversation(),
+            () -> {
+                if (currentLevel2Dialogue != null) {
+                    screens.remove(currentLevel2Dialogue);
+                    currentLevel2Dialogue = null;
+                }
+                currentIntro2 = OutbreakIntro2.level3Unlocked(this::showLevelSelection);
+                screens.add(currentIntro2, "Level3Unlocked");
+                screens.revalidate();
+                showScreen("Level3Unlocked");
+                currentIntro2.start();
+            }
+        );
+        screens.add(currentLevel2Dialogue, "Level2EndingDialogue");
+        screens.revalidate();
+        showScreen("Level2EndingDialogue");
+        currentLevel2Dialogue.requestFocusInWindow();
     }
 
     private void clearLevel2Screens() {
+        if (currentLevel2 != null) {
+            currentLevel2.disposeGame();
+            screens.remove(currentLevel2);
+            currentLevel2 = null;
+        }
         if (currentIntro2 != null) {
             currentIntro2.stop();
             screens.remove(currentIntro2);
@@ -856,10 +916,6 @@ public class Main extends JFrame {
         if (currentLevel2Dialogue != null) {
             screens.remove(currentLevel2Dialogue);
             currentLevel2Dialogue = null;
-        }
-        if (level2EndScreen != null) {
-            screens.remove(level2EndScreen);
-            level2EndScreen = null;
         }
     }
 

@@ -214,7 +214,7 @@ public class ContinueGame extends JPanel {
             centered(g, second, x + w / 2, y + h - 43, focused ? 12 : 10, WHITE, true);
         }
         String status = locked ? "LOCKED" : SaveManager.isCompleted(i + 1) ? "COMPLETED"
-            : i == 0 && SaveManager.hasSavedLevel1() ? "IN PROGRESS" : "UNLOCKED";
+            : hasSavedLevel(i + 1) ? "IN PROGRESS" : "UNLOCKED";
         centered(g, status, x + w / 2, y + h - 20, 10,
             locked ? MUTED : new Color(167, 226, 186), true);
     }
@@ -306,10 +306,20 @@ public class ContinueGame extends JPanel {
         g.drawLine(cx - dir * 6, cy, cx + dir * 9, cy + 13);
     }
 
+    private static boolean hasSavedLevel(int level) {
+        if (level == 1) return SaveManager.hasSavedLevel1();
+        if (level == 2) {
+            java.util.Properties p = SaveManager.load();
+            return "true".equals(p.getProperty("level2.started"))
+                && !"true".equals(p.getProperty("level2.won"));
+        }
+        return false;
+    }
+
     private void drawBottom(Graphics2D g) {
         int level = selectedIndex + 1;
         boolean locked = level > SaveManager.highestUnlockedLevel();
-        boolean saved = level == 1 && SaveManager.hasSavedLevel1();
+        boolean saved = hasSavedLevel(level);
         String actionText = locked ? "LOCKED" : saved ? "CONTINUE GAME" : "EXPLORE";
         g.setPaint(new GradientPaint(ACTION.x, ACTION.y,
             locked ? new Color(57, 52, 73) : new Color(128, 76, 177),
