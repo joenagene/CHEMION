@@ -1,8 +1,8 @@
 package battlefield.level2;
 
 import battlefield.level1.SaveManager;
-import game.GameplayBridge;
 import game.GameManager;
+import game.GameplayBridge;
 import game.Reward;
 import java.awt.*;
 import java.awt.event.*;
@@ -25,11 +25,12 @@ import javax.swing.*;
 public final class Level2GamePanel extends JPanel {
     private static final int W = 960, H = 540, WORLD = 3160;
     private static final int FLOOR_TOP = 216, FLOOR_BOTTOM = 448;
-    private static final Color WHITE = new Color(239, 233, 253);
-    private static final Color PURPLE = new Color(202, 165, 249);
-    private static final Color MUTED = new Color(174, 163, 194);
+    // Shared visual language with Level 1: identical HUD, menu, and card colors.
+    private static final Color WHITE = new Color(242, 234, 255);
+    private static final Color PURPLE = new Color(204, 170, 251);
+    private static final Color MUTED = new Color(184, 170, 204);
     private static final Color TEAL = new Color(114, 214, 200);
-    private static final Color GOLD = new Color(244, 197, 120);
+    private static final Color GOLD = new Color(244, 178, 83);
     private static final Color RED = new Color(242, 123, 149);
     private static final Color[] VIAL_COLORS = {
         new Color(110, 216, 157), new Color(127, 187, 243),
@@ -38,6 +39,10 @@ public final class Level2GamePanel extends JPanel {
     private static final String[] ENEMY_IDS = {
         "acid_zombie", "patient_zero", "toxic_zombie", "plague_doctor"
     };
+    // Per-zombie movement speeds (pixels per 16ms tick). No wave-based speed increase.
+    // Acid: slow/corroded; Patient Zero: agile; Toxic: heavy/sluggish; Doctor: deliberate boss.
+    private static final double[] ENEMY_BASE_SPEED = {0.43, 0.78, 0.34, 0.50};
+    private static final int SHATTER_TICKS = 17; // 272 ms at 60 FPS; no zombie death sprites
     private static final String[] NAMES = {
         "Acid Zombie", "Patient Zero", "Toxic Zombie", "Plague Doctor"
     };
@@ -138,18 +143,62 @@ public final class Level2GamePanel extends JPanel {
         final int type;
         double x, y;
         int hp, cooldown, flash, slowed;
+        // Slight individual variation, saved so Continue Game preserves each enemy's pace.
+        double speedFactor = 1.0;
         String face = "left";
         Enemy(int type, double x, double y) {
             this.type = type; this.x = x; this.y = y;
             this.hp = type == 3 ? 4 : type == 0 ? 1 : 2;
         }
     }
+    // A zombie breaks into tiny pieces of its CURRENT walk/run sprite.
+    // Never loads or plays zombie death sheets.
+    private static final class Shard {
+        final BufferedImage image;
+        final int localX, localY;
+        final double vx, vy;
+        Shard(BufferedImage image, int localX, int localY, double vx, double vy) {
+            this.image = image; this.localX = localX; this.localY = localY;
+            this.vx = vx; this.vy = vy;
+        }
+    }
     private static final class Defeated {
-        final int type;
         final double x, y;
-        final String face;
+        final int width, height;
+        final List<Shard> shards = new ArrayList<>();
         int age;
-        Defeated(Enemy z) { type = z.type; x = z.x; y = z.y; face = z.face; }
+        Defeated(Enemy z, BufferedImage sprite, Random rng) {
+            x = z.x; y = z.y;
+            height = z.type == 3 ? 92 : 67;
+            width = Math.min(height * 2, Math.max(1,
+                    (int) Math.round(height * sprite.getWidth() / (double) sprite.getHeight())));
+            BufferedImage scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = scaled.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g.drawImage(sprite, 0, 0, width, height, null);
+            g.dispose();
+            int tile = z.type == 3 ? 7 : 5;
+            for (int sy = 0; sy < height; sy += tile) {
+                for (int sx = 0; sx < width; sx += tile) {
+                    int tw = Math.min(tile, width - sx), th = Math.min(tile, height - sy);
+                    boolean visible = false;
+                    for (int iy = sy; iy < sy + th && !visible; iy++)
+                        for (int ix = sx; ix < sx + tw; ix++)
+                            if ((scaled.getRGB(ix, iy) >>> 24) > 30) { visible = true; break; }
+                    if (!visible) continue;
+                    BufferedImage part = new BufferedImage(tw, th, BufferedImage.TYPE_INT_ARGB);
+                    Graphics2D pg = part.createGraphics();
+                    pg.drawImage(scaled, 0, 0, tw, th, sx, sy, sx + tw, sy + th, null);
+                    pg.dispose();
+                    double outward = (sx + tw / 2.0 - width / 2.0) / Math.max(1.0, width / 2.0);
+                    double vx = outward * (1.1 + rng.nextDouble() * 1.5)
+                            + (rng.nextDouble() - .5) * 1.4;
+                    double vy = -1.0 - rng.nextDouble() * 2.5;
+                    shards.add(new Shard(part, sx, sy, vx, vy));
+                }
+            }
+        }
     }
     private static final class Projectile {
         final Enemy enemy;
@@ -179,6 +228,10 @@ public final class Level2GamePanel extends JPanel {
             @Override public void mouseExited(MouseEvent e) {
                 hoverControl = 0; repaint();
             }
+        });
+        // Never keep movement/run pressed when the game loses keyboard focus.
+        addFocusListener(new FocusAdapter() {
+            @Override public void focusLost(FocusEvent e) { keys.clear(); }
         });
         addMouseMotionListener(new MouseMotionAdapter() {
             @Override public void mouseMoved(MouseEvent e) {
@@ -214,15 +267,33 @@ public final class Level2GamePanel extends JPanel {
         getActionMap().put("release" + key, new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { keys.remove(key); }
         });
+        // A Shift+movement key event can arrive even when Swing never delivered
+        // a standalone Shift press. Track both keys to make sprinting reliable.
+        String shiftedId = id + "Shift";
+        getInputMap(WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke(key, InputEvent.SHIFT_DOWN_MASK, false), shiftedId);
+        getActionMap().put(shiftedId, new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) {
+                keys.add(key);
+                keys.add(KeyEvent.VK_SHIFT);
+            }
+        });
+        getInputMap(WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke(key, InputEvent.SHIFT_DOWN_MASK, true), "release" + key);
+        if (key == KeyEvent.VK_SHIFT) {
+            getInputMap(WHEN_IN_FOCUSED_WINDOW).put(
+                    KeyStroke.getKeyStroke(KeyEvent.VK_SHIFT, InputEvent.SHIFT_DOWN_MASK, false), id);
+        }
     }
     private void installKeys() {
         for (int k : new int[] {KeyEvent.VK_W, KeyEvent.VK_A, KeyEvent.VK_S, KeyEvent.VK_D,
-                KeyEvent.VK_UP, KeyEvent.VK_DOWN, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT}) hold(k);
+                KeyEvent.VK_UP, KeyEvent.VK_DOWN, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT,
+                KeyEvent.VK_SHIFT}) hold(k);
         bind(KeyEvent.VK_SPACE, "throw", this::throwPotion);
         bind(KeyEvent.VK_M, "lab", this::toggleLab);
         bind(KeyEvent.VK_J, "journal", this::toggleJournal);
         bind(KeyEvent.VK_H, "heal", this::heal);
-        bind(KeyEvent.VK_Q, "nextPotion", () -> equipped = (equipped + 1) % 4);
+        bind(KeyEvent.VK_Q, "nextPotion", this::switchPotion);
         bind(KeyEvent.VK_P, "pause", this::togglePause);
         bind(KeyEvent.VK_ESCAPE, "escape", this::escape);
         bind(KeyEvent.VK_R, "restart", () -> { if (dead) reset(); });
@@ -232,7 +303,8 @@ public final class Level2GamePanel extends JPanel {
         });
         for (int i = 0; i < 4; i++) {
             final int slot = i;
-            bind(KeyEvent.VK_1 + i, "slot" + i, () -> equipped = slot);
+            bind(KeyEvent.VK_1 + i, "slot" + i, () -> equipPotion(slot));
+            bind(KeyEvent.VK_NUMPAD1 + i, "numpadSlot" + i, () -> equipPotion(slot));
         }
     }
     private void escape() {
@@ -241,10 +313,13 @@ public final class Level2GamePanel extends JPanel {
         else if (journal) journal = false;
         else togglePause();
     }
-    private void togglePause() { if (!dead && !won) { if (paused) paused = false; else openPauseMenu(); } }
+    private void togglePause() { openPauseMenu(); }
     public void openPauseMenu() {
         if (dead || won) return;
-        keys.clear(); paused = true; hoverControl = 0; repaint();
+        paused = !paused;
+        keys.clear(); hoverControl = 0;
+        setCursor(Cursor.getDefaultCursor());
+        repaint();
     }
     public void disposeGame() { timer.stop(); keys.clear(); }
     @Override public void addNotify() {
@@ -284,6 +359,26 @@ public final class Level2GamePanel extends JPanel {
         if (paused || dead || won || encounter) return;
         lab = false; journal = !journal; keys.clear();
     }
+    private boolean canPlay() {
+        return !paused && !lab && !journal && !encounter && !dead && !won;
+    }
+
+    private void equipPotion(int type) {
+        if (!canPlay() || type < 0 || type >= vials.length) return;
+        equipped = type;
+        if (vials[type] > 0) message("Equipped: " + NAMES[type] + " potion (x" + vials[type] + ")");
+        else message("No " + NAMES[type] + " potions yet. Press M to craft.");
+    }
+
+    private void switchPotion() {
+        if (!canPlay()) return;
+        for (int n = 1; n <= vials.length; n++) {
+            int type = (equipped + n) % vials.length;
+            if (vials[type] > 0) { equipPotion(type); return; }
+        }
+        message("No crafted potions yet. Press M to craft.");
+    }
+
     private void heal() {
         if (paused || lab || journal || encounter || dead || won) return;
         if (medkits <= 0) { message("No medkits left."); return; }
@@ -308,23 +403,30 @@ public final class Level2GamePanel extends JPanel {
         double ex = Math.min(WORLD - 85, Math.max(px + 290, camera + W + 40));
         ex = Math.min(WORLD - 85, ex + rng.nextInt(115));
         double ey = 322 + rng.nextInt(74);
-        enemies.add(new Enemy(type, ex, ey));
+        Enemy z = new Enemy(type, ex, ey);
+        z.speedFactor = .84 + rng.nextDouble() * .32; // Individual pace: 84%-116%; no wave multiplier
+        enemies.add(z);
         spawned++; spawnTimer = type == 3 ? 170 : 125;
     }
 
     private void updateGame() {
-        ticks++;
-        if (noticeTicks > 0) noticeTicks--;
-        if (!paused) {
-            defeated.removeIf(d -> ++d.age > 38);
-        }
-        if (paused || dead || won || encounter || journal) { repaint(); return; }
+        // Same overlay priority as Level 1: paused means the game really stops.
+        if (paused) { repaint(); return; }
         if (lab) {
             if (labTab != 3 && --labTicks <= 0) {
-                lab = false; message("Lab time expired. Reopen it to try again.");
+                lab = false; Arrays.fill(selected, false);
+                message("Crafting time expired. Open the lab to retry.");
             }
             repaint(); return;
         }
+        if (dead || won || encounter || journal) {
+            // Let the boss finish shattering before the victory screen appears.
+            if (won) defeated.removeIf(d -> ++d.age >= SHATTER_TICKS);
+            repaint(); return;
+        }
+        ticks++;
+        if (noticeTicks > 0) noticeTicks--;
+        defeated.removeIf(d -> ++d.age >= SHATTER_TICKS);
         if (hurtTicks > 0) hurtTicks--;
         if (throwCooldown > 0) throwCooldown--;
         updatePlayer();
@@ -350,8 +452,9 @@ public final class Level2GamePanel extends JPanel {
         if (dx != 0 || dy != 0) {
             double oldX = px, oldY = py;
             double length = Math.hypot(dx, dy);
-            px = clamp(px + dx / length * 3.0, 34, WORLD - 35);
-            py = clamp(py + dy / length * 2.5, FLOOR_TOP + 60, FLOOR_BOTTOM - 15);
+            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 2.75 : 2.15; // Controlled sprint, not too fast
+            px = clamp(px + dx / length * speed, 34, WORLD - 35);
+            py = clamp(py + dy / length * speed, FLOOR_TOP + 60, FLOOR_BOTTOM - 15);
             GameplayBridge.recordMovement(oldX, oldY, px, py);
             if (dx < 0) facing = "left";
             else if (dx > 0) facing = "right";
@@ -378,7 +481,7 @@ public final class Level2GamePanel extends JPanel {
                 return;
             }
             if (distance > 43) {
-                double speed = (z.type == 1 ? 1.35 : z.type == 2 ? 1.13 : z.type == 3 ? .82 : 1.04);
+                double speed = ENEMY_BASE_SPEED[z.type] * z.speedFactor;
                 if (z.slowed > 0) speed *= .55;
                 z.x += dx / Math.max(distance, 1) * speed;
                 z.y += dy / Math.max(distance, 1) * speed * .65;
@@ -407,7 +510,7 @@ public final class Level2GamePanel extends JPanel {
                     p.enemy.slowed = 80;
                     message("Incorrect treatment! Review the Research Journal.");
                 } else {
-                    p.enemy.flash = 18;
+                    p.enemy.flash = 28; // red immediately on impact, including a final hit
                     if (p.enemy.hp <= 0) stabilize(p.enemy);
                     else message("Treatment effective. " + NAMES[p.type] + " is weakening.");
                 }
@@ -416,7 +519,10 @@ public final class Level2GamePanel extends JPanel {
     }
     private void stabilize(Enemy z) {
         enemies.remove(z);
-        defeated.add(new Defeated(z));
+        BufferedImage pose = sprites.get(false, ENEMY_IDS[z.type],
+                z.type == 1 ? "run" : "walk", z.face, ticks / 9);
+        if (pose == null) pose = fallbackShatterPose(z);
+        defeated.add(new Defeated(z, pose, rng));
         stabilized[z.type]++;
         Reward earned = GameplayBridge.rewards(2, z.type);
         int[] progress = GameplayBridge.award(xp, coins, earned);
@@ -451,19 +557,40 @@ public final class Level2GamePanel extends JPanel {
         disposeGame();
         if (onWin != null) onWin.run();
     }
-    private void throwPotion() {
-        if (paused || lab || journal || encounter || dead || won || throwCooldown > 0) return;
-        if (vials[equipped] <= 0) { message("No " + SHORT_NAMES[equipped] + " potions. Press M to craft."); return; }
-        Enemy closest = null;
-        double nearest = 290;
+    private Enemy autoTarget() {
+        Enemy best = null;
+        double score = Double.POSITIVE_INFINITY;
         for (Enemy z : enemies) {
-            double d = Math.hypot(z.x - px, z.y - py);
-            if (d < nearest) { nearest = d; closest = z; }
+            double dx = z.x - px, dy = z.y - py;
+            double dist = Math.hypot(dx, dy);
+            boolean close = dist <= 305;
+            boolean aligned =
+                (facing.equals("right") && dx > 0 && Math.abs(dy) < 77 && dx <= 440) ||
+                (facing.equals("left") && dx < 0 && Math.abs(dy) < 77 && -dx <= 440) ||
+                (facing.equals("up") && dy < 0 && Math.abs(dx) < 77 && -dy <= 385) ||
+                (facing.equals("down") && dy > 0 && Math.abs(dx) < 77 && dy <= 385);
+            if (!close && !aligned) continue;
+            double candidate = dist - (aligned ? 65 : 0) - (z.type == equipped ? 40 : 0);
+            if (candidate < score) { score = candidate; best = z; }
         }
-        if (closest == null) { message("No infected within throwing range."); return; }
+        return best;
+    }
+
+    private void throwPotion() { throwPotion(null); }
+
+    private void throwPotion(Enemy clicked) {
+        if (!canPlay() || throwCooldown > 0) return;
+        if (vials[equipped] <= 0) {
+            message("No " + NAMES[equipped] + " potions. Press M to craft."); return;
+        }
+        Enemy targetEnemy = clicked == null ? autoTarget() : clicked;
+        if (targetEnemy == null) {
+            message("No zombie in range. Move closer or face the zombie."); return;
+        }
         vials[equipped]--;
-        projectiles.add(new Projectile(closest, equipped, px + 10, py - 31));
-        throwCooldown = 36;
+        projectiles.add(new Projectile(targetEnemy, equipped,
+                px + (facing.equals("right") ? 9 : facing.equals("left") ? -9 : 0), py - 39));
+        throwCooldown = 26;
     }
     private void reset() {
         px = 132; py = 369; camera = 0; hp = 100;
@@ -513,7 +640,8 @@ public final class Level2GamePanel extends JPanel {
         StringJoiner zombies = new StringJoiner(";");
         for (Enemy z : enemies) {
             zombies.add(z.type + "," + z.x + "," + z.y + "," + z.hp + ","
-                    + z.cooldown + "," + z.flash + "," + z.slowed + "," + z.face);
+                    + z.cooldown + "," + z.flash + "," + z.slowed + "," + z.face
+                    + "," + z.speedFactor);
         }
         p.setProperty("level2.enemies", zombies.toString());
         StringJoiner shots = new StringJoiner(";");
@@ -545,13 +673,20 @@ public final class Level2GamePanel extends JPanel {
             String enemyData = p.getProperty("level2.enemies", "");
             if (!enemyData.isEmpty()) for (String line : enemyData.split(";")) {
                 String[] a = line.split(",", -1);
-                if (a.length != 8) throw new IllegalArgumentException("Bad enemy data");
+                // Existing 8-field save data still loads; new saves add speedFactor.
+                if (a.length != 8 && a.length != 9) throw new IllegalArgumentException("Bad enemy data");
                 int type = Integer.parseInt(a[0]);
                 if (type < 0 || type > 3) throw new IllegalArgumentException("Bad enemy type");
                 Enemy z = new Enemy(type, Double.parseDouble(a[1]), Double.parseDouble(a[2]));
                 z.hp = Integer.parseInt(a[3]); z.cooldown = Integer.parseInt(a[4]);
                 z.flash = Integer.parseInt(a[5]); z.slowed = Integer.parseInt(a[6]);
-                z.face = a[7]; loadedEnemies.add(z);
+                z.face = a[7];
+                if (a.length == 9) {
+                    double factor = Double.parseDouble(a[8]);
+                    if (!Double.isFinite(factor)) throw new IllegalArgumentException("Bad enemy speed");
+                    z.speedFactor = clamp(factor, .80, 1.20);
+                }
+                loadedEnemies.add(z);
             }
             List<Projectile> loadedShots = new ArrayList<>();
             String projectileData = p.getProperty("level2.projectiles", "");
@@ -690,7 +825,7 @@ public final class Level2GamePanel extends JPanel {
             return;
         }
         if (paused) {
-            if (RESUME.contains(x, y)) paused = false;
+            if (RESUME.contains(x, y)) openPauseMenu();
             else if (SAVE_EXIT.contains(x, y)) {
                 try { saveProgress(); disposeGame(); if (onMenu != null) onMenu.run(); }
                 catch (IOException ex) { message("SAVE FAILED: " + ex.getMessage()); }
@@ -705,17 +840,27 @@ public final class Level2GamePanel extends JPanel {
         }
         if (lab) { clickLab(x, y); repaint(); return; }
         if (journal) { clickJournal(x, y); repaint(); return; }
-        if (HUD_PAUSE.contains(x, y) || HUD_EXIT.contains(x, y)) {
-            openPauseMenu(); return; // Purple menu only; never a white JOptionPane.
+        if (hudControlsAvailable() && (HUD_PAUSE.contains(x, y) || HUD_EXIT.contains(x, y))) {
+            openPauseMenu(); return; // Same in-game purple menu as Level 1.
         }
         for (int i = 0; i < 4; i++) {
-            if (new Rectangle(22 + i * 132, 468, 126, 51).contains(x, y)) {
-                equipped = i; repaint(); return;
+            int slotX = HOTBAR_X + i * (HOTBAR_SLOT_W + HOTBAR_GAP);
+            if (new Rectangle(slotX, HOTBAR_Y, HOTBAR_SLOT_W, HOTBAR_SLOT_H).contains(x, y)) {
+                equipPotion(i); repaint(); return;
             }
         }
-        if (new Rectangle(568, 473, 181, 48).contains(x, y)) toggleLab();
-        else if (new Rectangle(760, 473, 184, 48).contains(x, y)) toggleJournal();
-        else if (y < 460) throwPotion();
+        if (new Rectangle(568, 473, 181, 48).contains(x, y)) { toggleLab(); repaint(); return; }
+        if (new Rectangle(760, 473, 184, 48).contains(x, y)) { toggleJournal(); repaint(); return; }
+        if (y < 460) {
+            Enemy clicked = null;
+            for (Enemy z : enemies) {
+                if (Math.hypot(z.x - camera - x, z.y - 34 - y) < 46
+                        && Math.hypot(z.x - px, z.y - py) < 470) {
+                    clicked = z; break;
+                }
+            }
+            throwPotion(clicked);
+        }
         repaint();
     }
     private void clickLab(int x, int y) {
@@ -785,7 +930,8 @@ public final class Level2GamePanel extends JPanel {
         else if (lab) drawLab(g);
         else if (journal) drawJournal(g);
         else if (dead) drawEnd(g, "GAME OVER", "Your scientist was overwhelmed.", false);
-        else if (won) drawEnd(g, "LEVEL 2 COMPLETE", "The Plague Doctor has been stabilized!", true);
+        else if (won && defeated.isEmpty())
+            drawEnd(g, "LEVEL 2 COMPLETE", "The Plague Doctor has been stabilized!", true);
         g.dispose();
     }
 
@@ -917,61 +1063,140 @@ public final class Level2GamePanel extends JPanel {
     }
     private void drawPlayer(Graphics2D g) {
         int x = (int) (px - camera), y = (int) py;
-        g.setColor(new Color(6, 7, 13, 130)); g.fillOval(x - 19, y - 8, 38, 12);
-        boolean moving = !keys.isEmpty() && !paused && !lab && !journal;
-        String action = dead ? "death" : hurtTicks > 0 ? "hurt"
-                : throwCooldown > 23 ? "throw potion" : "walk";
-        BufferedImage sprite = sprites.get(true, scientist, action, facing, moving ? ticks / 8 : 0);
+        g.setColor(new Color(6, 7, 13, 130));
+        g.fillOval(x - 19, y - 8, 38, 12);
+        boolean moving = keys.contains(KeyEvent.VK_W) || keys.contains(KeyEvent.VK_A)
+                || keys.contains(KeyEvent.VK_S) || keys.contains(KeyEvent.VK_D)
+                || keys.contains(KeyEvent.VK_UP) || keys.contains(KeyEvent.VK_DOWN)
+                || keys.contains(KeyEvent.VK_LEFT) || keys.contains(KeyEvent.VK_RIGHT);
+        boolean running = moving && keys.contains(KeyEvent.VK_SHIFT);
+        // Hurt uses normal walk/run frames, NEVER the separate hurt PNG folder.
+        String moveAction = running ? "run" : "walk";
+        String action = hurtTicks > 0 ? moveAction
+                : dead ? "death"
+                : throwCooldown > 14 ? "throw potion" : moveAction;
+        int frame = moving ? ticks / (running ? 6 : 10) : 0; // Dedicated run sheet at moderate FPS
+        BufferedImage sprite = sprites.get(true, scientist, action, facing, frame);
+        // Strong red blink over the entire sprite, not a translucent red glow.
+        boolean red = hurtTicks > 0 && hurtTicks % 8 >= 4;
+        int bob = running && (ticks / 6) % 2 == 0 ? 2 : 0;
+        if (running) drawRunTrail(g, x, y);
         if (sprite != null) {
-            drawSprite(g, sprite, x, y, 62, hurtTicks > 0 ? .65f : .94f);
+            // Slight forward lean makes sprinting visibly different even if
+            // a character has only walk sheets and no dedicated run sheets.
+            Graphics2D actor = (Graphics2D) g.create();
+            if (running && (facing.equals("left") || facing.equals("right"))) {
+                double angle = facing.equals("right") ? .035 : -.035;
+                actor.rotate(angle, x, y);
+            }
+            drawSprite(actor, red ? sprites.red(sprite) : sprite,
+                    x, y - bob, 65, 1f, 59);
+            actor.dispose();
         } else {
-            g.setColor(hurtTicks > 0 ? RED : new Color(223, 218, 239));
-            g.fillRect(x - 15, y - 49, 30, 31); // coat
-            g.setColor(new Color(68, 55, 92)); g.fillRect(x - 10, y - 20, 8, 19);
-            g.fillRect(x + 3, y - 20, 8, 19);
-            g.setColor(new Color(217, 168, 142)); g.fillRect(x - 9, y - 65, 18, 16);
-            g.setColor(new Color(48, 35, 51)); g.fillRect(x - 11, y - 68, 22, 8);
-            g.setColor(TEAL); g.fillRect(x - 3, y - 41, 6, 10);
+            Color body = red ? new Color(247, 34, 52) : new Color(161, 126, 204);
+            Color head = red ? new Color(247, 34, 52) : new Color(207, 168, 150);
+            g.setColor(body);
+            g.fillRoundRect(x - 12, y - 49 - bob, 24, 45, 8, 8);
+            g.setColor(head);
+            g.fillOval(x - 11, y - 68 - bob, 22, 24);
         }
+        g.setColor(red ? new Color(255, 60, 77, 220) : new Color(179, 148, 234, 130));
+        g.drawOval(x - 15, y - 5, 30, 9);
+    }
+    private void drawRunTrail(Graphics2D g, int x, int y) {
+        // Pixel speed lines + dust; no new art and no fire effects.
+        int sign = facing.equals("left") ? 1 : -1;
+        int pulse = ticks % 8;
+        g.setColor(new Color(223, 194, 255, 215));
+        g.fillRect(x + sign * 24 - 4, y - 29 + pulse / 3, 12, 3);
+        g.fillRect(x + sign * 30 - 3, y - 15, 10, 3);
+        g.setColor(new Color(174, 145, 224, 185));
+        g.fillRect(x + sign * 19 - 3, y - 7, 10, 3);
+        g.fillRect(x + sign * 33 - 2, y - 5 - pulse / 2, 5, 3);
+        g.setColor(new Color(224, 213, 244, 190));
+        g.fillRect(x + sign * 13 - 2, y - 2, 5, 3);
     }
     private void drawEnemy(Graphics2D g, Enemy z) {
         int x = (int) (z.x - camera), y = (int) z.y;
         if (x < -100 || x > W + 100) return;
         g.setColor(new Color(5, 8, 15, 150));
         g.fillOval(x - (z.type == 3 ? 31 : 20), y - 7, z.type == 3 ? 62 : 40, 13);
-        String action = z.flash > 0 ? "hurt" : z.cooldown > 55 ? "attack" : "walk";
-        BufferedImage sprite = sprites.get(false, ENEMY_IDS[z.type], action, z.face, ticks / 10);
+        // Attack is a 24-tick, one-time four-frame sequence tied to the hit cooldown.
+        // Unlike ticks/animationDelay, this starts at frame zero on every attack.
+        boolean attacking = z.flash <= 0 && z.cooldown > 51;
+        String action = attacking ? "attack" : z.type == 1 ? "run" : "walk";
+        int animationDelay = z.type == 1 ? 8 : z.type == 2 ? 14 : z.type == 3 ? 13 : 11;
+        int frame = attacking ? Math.min(3, (75 - z.cooldown) / 6)
+                : ticks / animationDelay;
+        BufferedImage sprite = sprites.get(false, ENEMY_IDS[z.type], action, z.face, frame);
+        boolean red = z.flash > 0 && z.flash % 8 >= 4;
         if (sprite != null) {
-            drawSprite(g, sprite, x, y, z.type == 3 ? 92 : 67, z.flash > 0 ? .55f : .9f);
-        } else drawFallbackEnemy(g, z, x, y);
+            drawSprite(g, red ? sprites.red(sprite) : sprite,
+                    x, y, z.type == 3 ? 92 : 67, 1f);
+        } else {
+            drawFallbackEnemy(g, z, x, y, red);
+        }
+    }
+    private BufferedImage fallbackShatterPose(Enemy z) {
+        // If an asset is missing, even the Java fallback breaks into its own pixels.
+        BufferedImage fallback = new BufferedImage(190, 170, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = fallback.createGraphics();
+        g.translate(95, 154);
+        drawFallbackEnemyBase(g, z, 0, 0);
+        g.dispose();
+        return SpriteLoader.crop(fallback);
     }
     private void drawDefeated(Graphics2D g, Defeated d) {
         int x = (int) (d.x - camera), y = (int) d.y;
-        if (x < -100 || x > W + 100) return;
-        BufferedImage sprite = sprites.get(false, ENEMY_IDS[d.type], "death", d.face, d.age / 9);
-        if (sprite != null) {
-            drawSprite(g, sprite, x, y, d.type == 3 ? 92 : 67,
-                    Math.max(.05f, 1f - d.age / 40f));
-        } else {
-            // Gentle dissolving pixels; no flames or fire effects.
-            g.setColor(new Color(111, 216, 169, Math.max(0, 140 - d.age * 3)));
-            for (int i = 0; i < 12; i++) {
-                int ox = (i * 19 % 51) - 25;
-                int oy = (i * 13 % 42) + d.age / 2;
-                g.fillRect(x + ox, y - 45 + oy, 4, 4);
-            }
+        if (x < -140 || x > W + 140) return;
+        // Instant pixel shatter: pieces scatter outward, drop, and fade in < 0.3s.
+        float opacity = Math.max(0f, 1f - d.age / (float) SHATTER_TICKS);
+        Graphics2D pieces = (Graphics2D) g.create();
+        pieces.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
+        for (Shard shard : d.shards) {
+            int sx = (int) Math.round(x - d.width / 2.0 + shard.localX + shard.vx * d.age);
+            int sy = (int) Math.round(y - d.height + shard.localY + shard.vy * d.age
+                    + .17 * d.age * d.age);
+            pieces.drawImage(shard.image, sx, sy, null);
         }
+        pieces.dispose();
     }
 
     private static void drawSprite(Graphics2D g, BufferedImage img, int centerX, int footY, int height, float alpha) {
+        drawSprite(g, img, centerX, footY, height, alpha, height * 2);
+    }
+    // Scientist sprite has the same 65px height and 59px max width as Level 1.
+    private static void drawSprite(Graphics2D g, BufferedImage img, int centerX, int footY,
+                                   int height, float alpha, int maxWidth) {
         int width = Math.max(1, (int) Math.round(height * img.getWidth() / (double) Math.max(1, img.getHeight())));
-        width = Math.min(width, height * 2);
+        width = Math.min(width, maxWidth);
         Composite old = g.getComposite();
         g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
         g.drawImage(img, centerX - width / 2, footY - height, width, height, null);
         g.setComposite(old);
     }
-    private void drawFallbackEnemy(Graphics2D g, Enemy z, int x, int y) {
+    private void drawFallbackEnemy(Graphics2D g, Enemy z, int x, int y, boolean red) {
+        // Render the whole fallback to a temporary image so the head, arms,
+        // and legs ALL turn red, not just the body.
+        if (red) {
+            BufferedImage image = new BufferedImage(190, 170, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D fg = image.createGraphics();
+            fg.translate(95 - x, 154 - y);
+            drawFallbackEnemyBase(fg, z, x, y);
+            fg.dispose();
+            BufferedImage tinted = new BufferedImage(image.getWidth(), image.getHeight(),
+                    BufferedImage.TYPE_INT_ARGB);
+            for (int iy = 0; iy < image.getHeight(); iy++) {
+                for (int ix = 0; ix < image.getWidth(); ix++) {
+                    int alpha = (image.getRGB(ix, iy) >>> 24) & 255;
+                    if (alpha != 0) tinted.setRGB(ix, iy,
+                            (alpha << 24) | (247 << 16) | (34 << 8) | 52);
+                }
+            }
+            g.drawImage(tinted, x - 95, y - 154, null);
+        } else drawFallbackEnemyBase(g, z, x, y);
+    }
+    private void drawFallbackEnemyBase(Graphics2D g, Enemy z, int x, int y) {
         boolean boss = z.type == 3;
         int h = boss ? 87 : 62;
         Color coat = z.type == 0 ? new Color(94, 128, 110)
@@ -1033,7 +1258,7 @@ public final class Level2GamePanel extends JPanel {
         }
         label(g, (int) hp + " / 100", 89, 74, 11, WHITE, true);
         hudPanel(g, 399, 14, 164, 61);
-        label(g, "CONTAMINATED HOSPITAL", 413, 33, 10, MUTED, true);
+        label(g, "HOSPITAL WING", 413, 33, 10, MUTED, true);
         label(g, "WAVE " + wave + " / 4", 426, 55, 16, PURPLE, true);
         hudPanel(g, 721, 14, 225, 75);
         label(g, "XP  " + xp, 735, 38, 13, new Color(186, 222, 166), true);
@@ -1050,7 +1275,7 @@ public final class Level2GamePanel extends JPanel {
         // Selection never consumes a vial; only throwing does.
         hudPanel(g, 14, 461, 539, 65);
         for (int i = 0; i < 4; i++) drawPotionSlot(g, i);
-        label(g, "1-4 select  |  Q switch  |  SPACE throw  |  WASD move  |  H heal",
+        label(g, "WASD move  |  SHIFT run  |  1-4 select  |  Q switch  |  SPACE throw  |  H heal",
                 20, 454, 10, MUTED, false);
         hudButton(g, 568, 473, 181, 48, "MAKE POTION [M]", true);
         hudButton(g, 760, 473, 184, 48, "RESEARCH [J]", false);
@@ -1471,7 +1696,29 @@ public final class Level2GamePanel extends JPanel {
     /** Loads 1-row PNG sprite sheets; falls back to built-in pixel silhouettes. */
     private static final class SpriteLoader {
         private final Map<String, BufferedImage[]> cache = new HashMap<>();
+        // Cache red-tinted frames so hurt flashing does not allocate every tick.
+        private final Map<BufferedImage, BufferedImage> redCache = new IdentityHashMap<>();
         private final Set<String> missing = new HashSet<>();
+
+        // Strong solid-red damage sprite: keep the exact original silhouette,
+        // transparency and pixel edges, but never display a hurt animation.
+        BufferedImage red(BufferedImage img) {
+            BufferedImage result = redCache.get(img);
+            if (result != null) return result;
+            result = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < img.getHeight(); y++) {
+                for (int x = 0; x < img.getWidth(); x++) {
+                    int c = img.getRGB(x, y);
+                    int alpha = (c >>> 24) & 255;
+                    int r = 247;
+                    int green = 34;
+                    int blue = 52;
+                    result.setRGB(x, y, (alpha << 24) | (r << 16) | (green << 8) | blue);
+                }
+            }
+            redCache.put(img, result);
+            return result;
+        }
         private final File assets;
         SpriteLoader() {
             File root = new File("assets");
@@ -1551,61 +1798,27 @@ public final class Level2GamePanel extends JPanel {
         }
         private static BufferedImage[] extract(BufferedImage sheet) {
             int w = sheet.getWidth(), h = sheet.getHeight();
-            if (w < h * 1.5) return new BufferedImage[] {crop(sheet)};
-            // Transparent gutters separate sprite frames. Keep each entire sprite.
-            int[] ink = new int[w];
-            for (int x = 0; x < w; x++) for (int y = 0; y < h; y++)
-                if ((sheet.getRGB(x, y) >>> 24) > 24) ink[x]++;
-            boolean[] occupied = new boolean[w];
-            for (int x = 0; x < w; x++) occupied[x] = ink[x] > 0;
-            int gap = Math.max(2, Math.min(5, h / 35));
-            int last = -1;
-            for (int x = 0; x < w; x++) if (occupied[x]) {
-                if (last >= 0 && x - last - 1 <= gap)
-                    for (int j = last + 1; j < x; j++) occupied[j] = true;
-                last = x;
-            }
-            List<int[]> regions = new ArrayList<>();
-            int start = -1;
-            for (int x = 0; x <= w; x++) {
-                boolean on = x < w && occupied[x];
-                if (on && start < 0) start = x;
-                if (!on && start >= 0) { regions.add(new int[] {start, x - 1}); start = -1; }
-            }
-            if (regions.size() < 2) return new BufferedImage[] {crop(sheet)};
-            int widest = 0;
-            for (int[] r : regions) widest = Math.max(widest, r[1] - r[0] + 1);
-            int minimum = Math.max(7, (int) Math.ceil(widest * .18));
-            List<int[]> major = new ArrayList<>();
-            for (int[] r : regions) if (r[1] - r[0] + 1 >= minimum) major.add(r);
-            while (major.size() > 8) {
-                int best = 0, smallest = Integer.MAX_VALUE;
-                for (int i = 0; i < major.size() - 1; i++) {
-                    int space = major.get(i + 1)[0] - major.get(i)[1] - 1;
-                    if (space < smallest) { smallest = space; best = i; }
-                }
-                major.get(best)[1] = major.get(best + 1)[1];
-                major.remove(best + 1);
-            }
-            if (major.size() < 2) return new BufferedImage[] {crop(sheet)};
-            BufferedImage[] frames = new BufferedImage[major.size()];
-            int[] boundaries = new int[major.size() + 1];
-            boundaries[0] = 0; boundaries[major.size()] = w;
-            for (int i = 1; i < major.size(); i++)
-                boundaries[i] = (major.get(i - 1)[1] + major.get(i)[0] + 1) / 2;
+            // CHEMION directional sheets are one horizontal row of FOUR equal cells.
+            // Do not guess frame boundaries from transparent gaps: connected poses,
+            // non-transparent backgrounds, or close limbs could merge all four poses.
+            if (w < 4 || w < h * 1.5) return new BufferedImage[] {crop(sheet)};
+            BufferedImage[] frames = new BufferedImage[4];
             int maxW = 1, maxH = 1;
-            for (int i = 0; i < frames.length; i++) {
-                frames[i] = crop(sheet.getSubimage(boundaries[i], 0,
-                        Math.max(1, boundaries[i + 1] - boundaries[i]), h));
+            for (int i = 0; i < 4; i++) {
+                int left = (int) ((long) i * w / 4);
+                int right = (int) ((long) (i + 1) * w / 4);
+                frames[i] = crop(sheet.getSubimage(left, 0, right - left, h));
                 maxW = Math.max(maxW, frames[i].getWidth());
                 maxH = Math.max(maxH, frames[i].getHeight());
             }
+            // Normalize sizes and align feet, avoiding jitter between frames.
             for (int i = 0; i < frames.length; i++) {
                 BufferedImage normalized = new BufferedImage(maxW, maxH, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D g = normalized.createGraphics();
                 g.drawImage(frames[i], (maxW - frames[i].getWidth()) / 2,
                         maxH - frames[i].getHeight(), null);
-                g.dispose(); frames[i] = normalized;
+                g.dispose();
+                frames[i] = normalized;
             }
             return frames;
         }
