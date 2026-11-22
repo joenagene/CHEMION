@@ -1,9 +1,4 @@
 
-import battlefield.level1.Level1GamePanel;
-import battlefield.level1.SaveManager;
-import battlefield.level2.Level2GamePanel;
-import game.GameManager;
-import game.Scientist;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -15,6 +10,12 @@ import java.util.Set;
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
+import battlefield.level1.Level1GamePanel;
+import battlefield.level1.SaveManager;
+import game.GameManager;
+import game.Scientist;
+import battlefield.level2.Level2GamePanel;
+import battlefield.level3.Level3GamePanel;
 
 public class Main extends JFrame {
 
@@ -24,6 +25,7 @@ public class Main extends JFrame {
     private Clip menuMusic;
     private Level1GamePanel currentLevel1;
     private Level2GamePanel currentLevel2;
+    private Level3GamePanel currentLevel3;
     private boolean level2EndingShown;
     private boolean endingShown;
     private OutbreakIntro currentIntro;
@@ -573,8 +575,11 @@ public class Main extends JFrame {
             if (hasSavedLevel2()) enterLevel2(true);
             else startLevel2Intro();
         } else if (level == 3) {
-            // Level 3 intro is playable; battlefield will be connected later.
-            startLevel3Intro();
+            int savedIndex = findSavedScientistIndex();
+            if (savedIndex >= 0) selectedScientistIndex = savedIndex;
+            // Resume unfinished factory gameplay; otherwise play the intro.
+            if (hasSavedLevel3()) enterLevel3(true);
+            else startLevel3Intro();
         } else {
             JOptionPane.showMessageDialog(this,
                 "Level " + level + " is unlocked, but its gameplay is not connected yet.",
@@ -598,6 +603,11 @@ public class Main extends JFrame {
     }
 
     private void confirmExitApplication() {
+        if (currentLevel3 != null) {
+            currentLevel3.openPauseMenu();
+            showScreen("Level3");
+            return;
+        }
         if (currentLevel2 != null) {
             // Use the existing purple Game Menu; never stack a white dialog on it.
             currentLevel2.openPauseMenu();
@@ -628,6 +638,7 @@ public class Main extends JFrame {
         if (currentIntro != null) currentIntro.stop();
         if (currentIntro2 != null) currentIntro2.stop();
         if (currentIntro3 != null) currentIntro3.stop();
+        if (currentLevel3 != null) currentLevel3.disposeGame();
         stopMenuMusic();
         dispose();
     }
@@ -929,9 +940,7 @@ public class Main extends JFrame {
         }
     }
 
-    // LEVEL 3: Toxic Chemical Factory narration -> scientist dialogue.
-    // The battlefield is not implemented yet, so return to level selection
-    // after the introduction instead of starting a nonexistent game panel.
+    // LEVEL 3: Toxic Chemical Factory narration -> scientist dialogue -> game.
     private void startLevel3Intro() {
         if (SaveManager.highestUnlockedLevel() < 3) {
             showLevelSelection();
@@ -969,7 +978,7 @@ public class Main extends JFrame {
         currentLevel3Dialogue = new OutbreakIntro3.DialoguePanel(
             selectedScientistIndex,
             OutbreakIntro3.scientistConversation(),
-            this::showLevelSelection
+            () -> enterLevel3(false)
         );
         screens.add(currentLevel3Dialogue, "Level3Conversation");
         screens.revalidate();
@@ -980,8 +989,65 @@ public class Main extends JFrame {
         });
     }
 
-    // Call this after Chemical Abomination is defeated in the future
-    // Level 3 battlefield. No early unlock or automatic outro on intro end.
+    private static boolean hasSavedLevel3() {
+        Properties p = SaveManager.load();
+        return "true".equals(p.getProperty("level3.started"))
+            && !"true".equals(p.getProperty("level3.won"))
+            && p.getProperty("scientist") != null;
+    }
+
+    private void enterLevel3(boolean restore) {
+        if (SaveManager.highestUnlockedLevel() < 3) {
+            showLevelSelection();
+            return;
+        }
+        int savedIndex = findSavedScientistIndex();
+        if (savedIndex >= 0) selectedScientistIndex = savedIndex;
+        clearLevel2Screens();
+        clearLevel3Screens();
+        if (currentLevel1 != null) {
+            currentLevel1.disposeGame();
+            screens.remove(currentLevel1);
+            currentLevel1 = null;
+        }
+        level3EndingShown = false;
+        currentLevel3 = new Level3GamePanel(
+            resolveScientistSpriteKey(selectedScientistIndex),
+            this::showLevel3Ending,
+            this::returnToMainMenu
+        );
+        if (restore) {
+            if (!currentLevel3.loadProgress()) {
+                currentLevel3.disposeGame();
+                currentLevel3 = null;
+                JOptionPane.showMessageDialog(this,
+                    "Level 3 save could not be restored. Your saved data was not overwritten.",
+                    "Load Failed", JOptionPane.WARNING_MESSAGE);
+                showLevelSelection();
+                return;
+            }
+        } else {
+            try {
+                currentLevel3.saveProgress();
+            } catch (IOException e) {
+                currentLevel3.disposeGame();
+                currentLevel3 = null;
+                JOptionPane.showMessageDialog(this,
+                    "Could not create Level 3 checkpoint:\n" + e.getMessage(),
+                    "Save Failed", JOptionPane.ERROR_MESSAGE);
+                showLevelSelection();
+                return;
+            }
+        }
+        screens.add(currentLevel3, "Level3");
+        screens.revalidate();
+        showScreen("Level3");
+        SwingUtilities.invokeLater(() -> {
+            if (currentLevel3 != null) currentLevel3.requestFocusInWindow();
+        });
+    }
+
+    // Chemical Abomination defeated -> outro dialogue -> Level 4 unlocked.
     public void showLevel3Ending() {
         if (level3EndingShown) return;
         try {
@@ -1016,6 +1082,11 @@ public class Main extends JFrame {
     }
 
     private void clearLevel3Screens() {
+        if (currentLevel3 != null) {
+            currentLevel3.disposeGame();
+            screens.remove(currentLevel3);
+            currentLevel3 = null;
+        }
         if (currentIntro3 != null) {
             currentIntro3.stop();
             screens.remove(currentIntro3);

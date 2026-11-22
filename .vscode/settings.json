@@ -1,4 +1,1 @@
-{
-  "java.project.sourcePaths": ["."],
-  "java.project.outputPath": "bin"
-}
+{"java.project.sourcePaths":["."],"java.project.outputPath":"bin","files.exclude":{"**/bin":true,"**/*.class":true}}

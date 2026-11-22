@@ -5,7 +5,7 @@ public final class ZombieTypes {
     private ZombieTypes() { }
 
     public static Zombie create(int level, int type, int currentHealth) {
-        if (type < 0 || type > 3 || (level != 1 && level != 2))
+        if (type < 0 || type > 3 || (level != 1 && level != 2 && level != 3))
             throw new IllegalArgumentException("Unsupported level or zombie type");
         Zombie z;
         if (level == 1) {
@@ -15,12 +15,19 @@ public final class ZombieTypes {
                 case 2: z = new CrawlerZombie(); break;
                 default: z = new MutatedSurvivor(); break;
             }
-        } else {
+        } else if (level == 2) {
             switch (type) {
                 case 0: z = new AcidZombie(); break;
                 case 1: z = new PatientZero(); break;
                 case 2: z = new ToxicZombie(); break;
                 default: z = new PlagueDoctor(); break;
+            }
+        } else {
+            switch (type) {
+                case 0: z = new ToxicBrute(); break;
+                case 1: z = new VenomSpitter(); break;
+                case 2: z = new ExplosiveZombie(); break;
+                default: z = new ChemicalAbomination(); break;
             }
         }
         z.setHealth(currentHealth);
@@ -73,5 +80,29 @@ public final class ZombieTypes {
         @Override public int attack() { return 15; }
         @Override public int receiveTreatment(Potion p) { return applyMatchingTreatment(p, 1); }
         @Override public Reward dropRewards() { return new Reward(120, 50, null, 0); }
+    }
+    private static class ToxicBrute extends Zombie {
+        ToxicBrute() { super("Toxic Brute", "Acidic industrial sludge", "Moderate", "L3-0", 1); }
+        @Override public int attack() { return 12; }
+        @Override public int receiveTreatment(Potion p) { return applyMatchingTreatment(p, 1); }
+        @Override public Reward dropRewards() { return new Reward(24, 14, null, 0); }
+    }
+    private static class VenomSpitter extends Zombie {
+        VenomSpitter() { super("Venom Spitter", "Airborne corrosive droplets", "Challenging", "L3-1", 2); }
+        @Override public int attack() { return 9; }
+        @Override public int receiveTreatment(Potion p) { return applyMatchingTreatment(p, 1); }
+        @Override public Reward dropRewards() { return new Reward(35, 22, null, 0); }
+    }
+    private static class ExplosiveZombie extends Zombie {
+        ExplosiveZombie() { super("Explosive Zombie", "Volatile industrial residue", "Hard", "L3-2", 2); }
+        @Override public int attack() { return 15; }
+        @Override public int receiveTreatment(Potion p) { return applyMatchingTreatment(p, 1); }
+        @Override public Reward dropRewards() { return new Reward(45, 28, null, 0); }
+    }
+    private static class ChemicalAbomination extends Zombie {
+        ChemicalAbomination() { super("Chemical Abomination", "Layered reactor mutation", "Boss", "L3-3", 5); }
+        @Override public int attack() { return 18; }
+        @Override public int receiveTreatment(Potion p) { return applyMatchingTreatment(p, 1); }
+        @Override public Reward dropRewards() { return new Reward(150, 65, null, 0); }
     }
 }
