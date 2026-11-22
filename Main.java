@@ -1,4 +1,9 @@
 
+import battlefield.level1.Level1GamePanel;
+import battlefield.level1.SaveManager;
+import battlefield.level2.Level2GamePanel;
+import game.GameManager;
+import game.Scientist;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -10,11 +15,6 @@ import java.util.Set;
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
-import battlefield.level1.Level1GamePanel;
-import battlefield.level1.SaveManager;
-import game.GameManager;
-import game.Scientist;
-import battlefield.level2.Level2GamePanel;
 
 public class Main extends JFrame {
 
@@ -31,6 +31,9 @@ public class Main extends JFrame {
     // Level 2 has its own cinematic intro and conversation, separate from Level 1.
     private OutbreakIntro2 currentIntro2;
     private OutbreakIntro2.DialoguePanel currentLevel2Dialogue;
+    private OutbreakIntro3 currentIntro3;
+    private OutbreakIntro3.DialoguePanel currentLevel3Dialogue;
+    private boolean level3EndingShown;
     private JPanel levelSelection;
     private boolean exploreFromLevelSelection;
     private final Set<String> introducedEnemies = new HashSet<>();
@@ -446,6 +449,7 @@ public class Main extends JFrame {
             SCIENTIST_SPRITE_KEYS[characterIndex]));
         introducedEnemies.clear();
         endingShown = false;
+        level3EndingShown = false;
 
         // Clean up any previous run without modifying other screens.
         if (currentIntro != null) {
@@ -463,6 +467,7 @@ public class Main extends JFrame {
             currentLevel1 = null;
         }
         clearLevel2Screens();
+        clearLevel3Screens();
 
         // Preserve the original outbreak story and scientist conversation.
         showNarration(OutbreakIntro.opening(this::showScientistConversation));
@@ -567,8 +572,10 @@ public class Main extends JFrame {
             if (savedIndex >= 0) selectedScientistIndex = savedIndex;
             if (hasSavedLevel2()) enterLevel2(true);
             else startLevel2Intro();
+        } else if (level == 3) {
+            // Level 3 intro is playable; battlefield will be connected later.
+            startLevel3Intro();
         } else {
-            // Levels 3-5 still have no connected battlefield or intro.
             JOptionPane.showMessageDialog(this,
                 "Level " + level + " is unlocked, but its gameplay is not connected yet.",
                 "Coming Soon", JOptionPane.INFORMATION_MESSAGE);
@@ -577,6 +584,7 @@ public class Main extends JFrame {
 
     private void showLevelSelection() {
         clearLevel2Screens();
+        clearLevel3Screens();
         if (levelSelection != null) screens.remove(levelSelection);
         levelSelection = new ContinueGame(
             this::openSelectedLevel,
@@ -619,6 +627,7 @@ public class Main extends JFrame {
         if (currentLevel1 != null) currentLevel1.disposeGame();
         if (currentIntro != null) currentIntro.stop();
         if (currentIntro2 != null) currentIntro2.stop();
+        if (currentIntro3 != null) currentIntro3.stop();
         stopMenuMusic();
         dispose();
     }
@@ -654,6 +663,7 @@ public class Main extends JFrame {
     private void returnToMainMenu() {
         GameManager.getInstance().endGame();
         clearLevel2Screens();
+        clearLevel3Screens();
         if (currentIntro != null) {
             currentIntro.stop();
             screens.remove(currentIntro);
@@ -889,7 +899,7 @@ public class Main extends JFrame {
                     screens.remove(currentLevel2Dialogue);
                     currentLevel2Dialogue = null;
                 }
-                currentIntro2 = OutbreakIntro2.level3Unlocked(this::showLevelSelection);
+                currentIntro2 = OutbreakIntro2.level3Unlocked(this::startLevel3Intro);
                 screens.add(currentIntro2, "Level3Unlocked");
                 screens.revalidate();
                 showScreen("Level3Unlocked");
@@ -916,6 +926,104 @@ public class Main extends JFrame {
         if (currentLevel2Dialogue != null) {
             screens.remove(currentLevel2Dialogue);
             currentLevel2Dialogue = null;
+        }
+    }
+
+    // LEVEL 3: Toxic Chemical Factory narration -> scientist dialogue.
+    // The battlefield is not implemented yet, so return to level selection
+    // after the introduction instead of starting a nonexistent game panel.
+    private void startLevel3Intro() {
+        if (SaveManager.highestUnlockedLevel() < 3) {
+            showLevelSelection();
+            return;
+        }
+
+        int savedIndex = findSavedScientistIndex();
+        if (savedIndex >= 0) selectedScientistIndex = savedIndex;
+        level3EndingShown = false;
+
+        clearLevel2Screens();
+        clearLevel3Screens();
+        if (currentLevel1 != null) {
+            currentLevel1.disposeGame();
+            screens.remove(currentLevel1);
+            currentLevel1 = null;
+        }
+
+        currentIntro3 = OutbreakIntro3.opening(this::showLevel3Conversation);
+        screens.add(currentIntro3, "Level3Narration");
+        screens.revalidate();
+        showScreen("Level3Narration");
+        currentIntro3.start();
+    }
+
+    private void showLevel3Conversation() {
+        if (currentIntro3 != null) {
+            currentIntro3.stop();
+            screens.remove(currentIntro3);
+            currentIntro3 = null;
+        }
+        if (currentLevel3Dialogue != null) {
+            screens.remove(currentLevel3Dialogue);
+        }
+        currentLevel3Dialogue = new OutbreakIntro3.DialoguePanel(
+            selectedScientistIndex,
+            OutbreakIntro3.scientistConversation(),
+            this::showLevelSelection
+        );
+        screens.add(currentLevel3Dialogue, "Level3Conversation");
+        screens.revalidate();
+        showScreen("Level3Conversation");
+        SwingUtilities.invokeLater(() -> {
+            if (currentLevel3Dialogue != null)
+                currentLevel3Dialogue.requestFocusInWindow();
+        });
+    }
+
+    // Call this after Chemical Abomination is defeated in the future
+    // Level 3 battlefield. No early unlock or automatic outro on intro end.
+    public void showLevel3Ending() {
+        if (level3EndingShown) return;
+        try {
+            SaveManager.markCompleted(3);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this,
+                "Could not save Level 3 completion:\n" + e.getMessage(),
+                "Save Failed", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        level3EndingShown = true;
+        clearLevel3Screens();
+        currentLevel3Dialogue = new OutbreakIntro3.DialoguePanel(
+            selectedScientistIndex,
+            OutbreakIntro3.level3EndingConversation(),
+            () -> {
+                if (currentLevel3Dialogue != null) {
+                    screens.remove(currentLevel3Dialogue);
+                    currentLevel3Dialogue = null;
+                }
+                currentIntro3 = OutbreakIntro3.level4Unlocked(this::showLevelSelection);
+                screens.add(currentIntro3, "Level4Unlocked");
+                screens.revalidate();
+                showScreen("Level4Unlocked");
+                currentIntro3.start();
+            }
+        );
+        screens.add(currentLevel3Dialogue, "Level3EndingDialogue");
+        screens.revalidate();
+        showScreen("Level3EndingDialogue");
+        currentLevel3Dialogue.requestFocusInWindow();
+    }
+
+    private void clearLevel3Screens() {
+        if (currentIntro3 != null) {
+            currentIntro3.stop();
+            screens.remove(currentIntro3);
+            currentIntro3 = null;
+        }
+        if (currentLevel3Dialogue != null) {
+            screens.remove(currentLevel3Dialogue);
+            currentLevel3Dialogue = null;
         }
     }
 
