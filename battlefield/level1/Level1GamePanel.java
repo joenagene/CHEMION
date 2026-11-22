@@ -5,6 +5,7 @@ import java.awt.event.*;
 import java.awt.geom.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.List;
 import javax.imageio.ImageIO;
@@ -91,6 +92,15 @@ public class Level1GamePanel extends JPanel {
     private int labTicks, labTab, journalTab = 2, journalChoice, noticeTicks;
     private int encounterType, target, equipped, batchQty = 1;
     private boolean encounter, lab, journal, paused, dead, won;
+    // Always-visible battlefield controls, in logical 960 x 540 coordinates.
+    // The mouse is scaled into these coordinates in the mouse listener.
+    // Compact icon-only controls in the unused space between the Wave and XP panels.
+    private static final Rectangle HUD_PAUSE = new Rectangle(606, 22, 30, 30);
+    private static final Rectangle HUD_EXIT = new Rectangle(651, 22, 30, 30);
+    private int hoveredHudControl = 0; // 0 = none, 1 = pause, 2 = exit
+    private static final Rectangle PAUSE_RESUME = new Rectangle(333, 211, 294, 47);
+    private static final Rectangle PAUSE_SAVE_EXIT = new Rectangle(333, 277, 294, 47);
+    private static final Rectangle PAUSE_EXIT_NO_SAVE = new Rectangle(333, 343, 294, 47);
     private String facing = "right";
     private String notice = "Stay alert. The infected are approaching.";
     private String labNotice = "Read Recipes for clues, then select ingredients.";
@@ -162,12 +172,226 @@ public class Level1GamePanel extends JPanel {
                       (int) (e.getY() * H / (double) Math.max(1, getHeight())));
                 repaint();
             }
+            @Override public void mouseExited(MouseEvent e) {
+                hoveredHudControl = 0;
+                setCursor(Cursor.getDefaultCursor());
+                repaint();
+            }
+        });
+        addMouseMotionListener(new MouseMotionAdapter() {
+            @Override public void mouseMoved(MouseEvent e) {
+                int x = (int) (e.getX() * W / (double) Math.max(1, getWidth()));
+                int y = (int) (e.getY() * H / (double) Math.max(1, getHeight()));
+                int next = 0;
+                if (hudControlsAvailable()) {
+                    if (HUD_PAUSE.contains(x, y)) next = 1;
+                    else if (HUD_EXIT.contains(x, y)) next = 2;
+                }
+                if (next != hoveredHudControl) {
+                    hoveredHudControl = next;
+                    setCursor(Cursor.getPredefinedCursor(
+                        next == 0 ? Cursor.DEFAULT_CURSOR : Cursor.HAND_CURSOR));
+                    repaint();
+                }
+            }
         });
         timer = new javax.swing.Timer(16, e -> updateGame());
         timer.start();
     }
     @Override public void addNotify() { super.addNotify(); SwingUtilities.invokeLater(this::requestFocusInWindow); }
     public void disposeGame() { timer.stop(); }
+
+    /** Pause and resume without losing an open lab, journal, or encounter. */
+    public void openPauseMenu() {
+        if (dead || won) return;
+        paused = !paused;
+        pressed.clear();
+        hoveredHudControl = 0;
+        setCursor(Cursor.getDefaultCursor());
+        repaint();
+    }
+
+    /** Exit icon opens the same in-game purple menu; no duplicate system dialog. */
+    private void showExitOptions() {
+        if (dead || won || paused) return;
+        openPauseMenu();
+    }
+
+    private void saveAndReturnToMenu() {
+        try {
+            saveProgress();
+            if (onMenu != null) onMenu.run();
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this,
+                "Your game could not be saved:\n" + e.getMessage(),
+                "Save Failed", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /** The purple menu button is the user's explicit exit-without-saving choice. */
+    private void exitWithoutSaving() {
+        if (onMenu != null) onMenu.run();
+    }
+
+    /** Persist the exact Level 1 encounter state, inventory and research. */
+    public void saveProgress() throws IOException {
+        if (dead) throw new IOException("Cannot save after game over. Restart or exit without saving.");
+        Properties p = SaveManager.load();
+        p.setProperty("scientist", scientist);
+        p.setProperty("level1.started", "true");
+        p.setProperty("level1.won", Boolean.toString(won));
+        p.setProperty("level1.px", Double.toString(px));
+        p.setProperty("level1.py", Double.toString(py));
+        p.setProperty("level1.camera", Double.toString(camera));
+        p.setProperty("level1.hp", Double.toString(hp));
+        p.setProperty("level1.ticks", Integer.toString(ticks));
+        p.setProperty("level1.hurtTicks", Integer.toString(hurtTicks));
+        p.setProperty("level1.throwCooldown", Integer.toString(throwCooldown));
+        p.setProperty("level1.medkits", Integer.toString(medkits));
+        p.setProperty("level1.xp", Integer.toString(xp));
+        p.setProperty("level1.coins", Integer.toString(coins));
+        p.setProperty("level1.wave", Integer.toString(wave));
+        p.setProperty("level1.spawned", Integer.toString(spawned));
+        p.setProperty("level1.spawnTimer", Integer.toString(spawnTimer));
+        p.setProperty("level1.waveTimer", Integer.toString(waveTimer));
+        p.setProperty("level1.equipped", Integer.toString(equipped));
+        p.setProperty("level1.target", Integer.toString(target));
+        p.setProperty("level1.facing", facing);
+        p.setProperty("level1.stock", intsToString(stock));
+        p.setProperty("level1.vials", intsToString(vials));
+        p.setProperty("level1.stabilized", intsToString(stabilized));
+        p.setProperty("level1.seen", boolsToString(seen));
+        p.setProperty("level1.recipes", boolsToString(unlockedRecipes));
+        StringBuilder enemyData = new StringBuilder();
+        for (Enemy z : enemies) {
+            if (enemyData.length() > 0) enemyData.append(';');
+            enemyData.append(z.type).append(',').append(z.x).append(',').append(z.y)
+                .append(',').append(z.hp).append(',').append(z.attackCooldown)
+                .append(',').append(z.flash).append(',').append(z.entering)
+                .append(',').append(z.face);
+        }
+        p.setProperty("level1.enemies", enemyData.toString());
+        StringBuilder projectileData = new StringBuilder();
+        for (Potion shot : shots) {
+            int enemyIndex = enemies.indexOf(shot.enemy);
+            if (enemyIndex < 0) continue;
+            if (projectileData.length() > 0) projectileData.append(';');
+            projectileData.append(enemyIndex).append(',').append(shot.type)
+                .append(',').append(shot.sx).append(',').append(shot.sy)
+                .append(',').append(shot.x).append(',').append(shot.y)
+                .append(',').append(shot.t).append(',').append(shot.arc);
+        }
+        p.setProperty("level1.projectiles", projectileData.toString());
+        SaveManager.save(p);
+    }
+
+    /** Restore a saved battle without replaying the opening cutscene. */
+    public boolean loadProgress() {
+        Properties p = SaveManager.load();
+        if (!"true".equals(p.getProperty("level1.started"))
+                || !scientist.equals(p.getProperty("scientist"))
+                || "true".equals(p.getProperty("level1.won"))) return false;
+        try {
+            reset();
+            px = clamp(readDouble(p, "level1.px", 130), 15, WORLD - 15);
+            py = clamp(readDouble(p, "level1.py", 386), ROAD_TOP + 18, H - 30);
+            camera = clamp(readDouble(p, "level1.camera", 0), 0, WORLD - W);
+            hp = clamp(readDouble(p, "level1.hp", 100), 1, 100);
+            ticks = readInt(p, "level1.ticks", 0);
+            hurtTicks = readInt(p, "level1.hurtTicks", 0);
+            throwCooldown = readInt(p, "level1.throwCooldown", 0);
+            medkits = readInt(p, "level1.medkits", 2);
+            xp = readInt(p, "level1.xp", 0);
+            coins = readInt(p, "level1.coins", 10);
+            wave = clamp(readInt(p, "level1.wave", 1), 1, 4);
+            spawned = clamp(readInt(p, "level1.spawned", 0), 0, quota());
+            spawnTimer = readInt(p, "level1.spawnTimer", 105);
+            waveTimer = readInt(p, "level1.waveTimer", 0);
+            equipped = clamp(readInt(p, "level1.equipped", 0), 0, 3);
+            target = clamp(readInt(p, "level1.target", 0), 0, 3);
+            String savedFacing = p.getProperty("level1.facing", "right");
+            facing = Arrays.asList("up", "down", "left", "right").contains(savedFacing)
+                ? savedFacing : "right";
+            readInts(p.getProperty("level1.stock"), stock);
+            readInts(p.getProperty("level1.vials"), vials);
+            readInts(p.getProperty("level1.stabilized"), stabilized);
+            readBools(p.getProperty("level1.seen"), seen);
+            readBools(p.getProperty("level1.recipes"), unlockedRecipes);
+            enemies.clear(); shots.clear();
+            String serialized = p.getProperty("level1.enemies", "");
+            if (!serialized.isEmpty()) for (String entry : serialized.split(";")) {
+                String[] fields = entry.split(",", -1);
+                if (fields.length != 8) throw new IllegalArgumentException("Invalid enemy data");
+                int type = Integer.parseInt(fields[0]);
+                if (type < 0 || type >= TYPES.length) throw new IllegalArgumentException("Invalid zombie type");
+                Enemy z = new Enemy(type, Double.parseDouble(fields[1]), Double.parseDouble(fields[2]));
+                z.hp = Double.parseDouble(fields[3]);
+                z.attackCooldown = Integer.parseInt(fields[4]);
+                z.flash = Integer.parseInt(fields[5]);
+                z.entering = Boolean.parseBoolean(fields[6]);
+                z.face = fields[7];
+                enemies.add(z);
+            }
+            String projectiles = p.getProperty("level1.projectiles", "");
+            if (!projectiles.isEmpty()) for (String entry : projectiles.split(";")) {
+                String[] fields = entry.split(",", -1);
+                if (fields.length != 8) throw new IllegalArgumentException("Invalid potion data");
+                int enemyIndex = Integer.parseInt(fields[0]);
+                if (enemyIndex < 0 || enemyIndex >= enemies.size()) continue;
+                double arc = Double.parseDouble(fields[7]);
+                Potion shot = new Potion(enemies.get(enemyIndex), Integer.parseInt(fields[1]),
+                    Double.parseDouble(fields[2]), Double.parseDouble(fields[3]),
+                    Math.max(0, (arc - 24) / .045));
+                shot.x = Double.parseDouble(fields[4]);
+                shot.y = Double.parseDouble(fields[5]);
+                shot.t = Double.parseDouble(fields[6]);
+                shots.add(shot);
+            }
+            paused = false; lab = false; journal = false; encounter = false;
+            pressed.clear();
+            message("Welcome back! Level 1 progress restored.");
+            repaint();
+            return true;
+        } catch (RuntimeException e) {
+            System.err.println("CHEMION: Invalid Level 1 save: " + e.getMessage());
+            reset();
+            return false;
+        }
+    }
+
+    private static String intsToString(int[] values) {
+        StringJoiner out = new StringJoiner(",");
+        for (int v : values) out.add(Integer.toString(v));
+        return out.toString();
+    }
+    private static String boolsToString(boolean[] values) {
+        StringJoiner out = new StringJoiner(",");
+        for (boolean v : values) out.add(Boolean.toString(v));
+        return out.toString();
+    }
+    private static void readInts(String text, int[] output) {
+        if (text == null) return;
+        String[] fields = text.split(",");
+        if (fields.length != output.length) throw new IllegalArgumentException("Invalid inventory length");
+        for (int i = 0; i < output.length; i++) output[i] = Math.max(0, Integer.parseInt(fields[i]));
+    }
+    private static void readBools(String text, boolean[] output) {
+        if (text == null) return;
+        String[] fields = text.split(",");
+        if (fields.length != output.length) throw new IllegalArgumentException("Invalid research length");
+        for (int i = 0; i < output.length; i++) output[i] = Boolean.parseBoolean(fields[i]);
+    }
+    private static int readInt(Properties p, String key, int fallback) {
+        return Integer.parseInt(p.getProperty(key, Integer.toString(fallback)));
+    }
+    private static double readDouble(Properties p, String key, double fallback) {
+        return Double.parseDouble(p.getProperty(key, Double.toString(fallback)));
+    }
+
+    private void autoSave() {
+        try { saveProgress(); }
+        catch (IOException e) { System.err.println("CHEMION auto-save failed: " + e.getMessage()); }
+    }
     private static double clamp(double v, double lo, double hi) { return Math.max(lo, Math.min(hi, v)); }
     private static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
 
@@ -223,13 +447,14 @@ public class Level1GamePanel extends JPanel {
             if (encounter) encounter = false;
             else if (won && onWin != null) onWin.run();
         });
-        bind(KeyEvent.VK_P, "pause", () -> { if (paused) paused = false; else if (canPlay()) paused = true; });
-        bind(KeyEvent.VK_R, "restart", () -> { if (dead || won) reset(); });
+        bind(KeyEvent.VK_P, "pause", this::openPauseMenu);
+        bind(KeyEvent.VK_R, "restart", () -> { if (dead || won) { reset(); autoSave(); } });
         bind(KeyEvent.VK_ESCAPE, "escape", () -> {
-            if (lab) lab = false;
+            if (paused) openPauseMenu();
+            else if (lab) lab = false;
             else if (journal) journal = false;
-            else if (paused) paused = false;
-            else if ((dead || won) && onMenu != null) onMenu.run();
+            else if (dead || won) { if (onMenu != null) onMenu.run(); }
+            else openPauseMenu();
         });
     }
     private boolean canPlay() { return !encounter && !lab && !journal && !paused && !dead && !won; }
@@ -636,6 +861,8 @@ public class Level1GamePanel extends JPanel {
     private void message(String s) { notice = s; noticeTicks = 175; }
 
     private void updateGame() {
+        // Pause takes precedence over crafting so the timer truly stops.
+        if (paused) { repaint(); return; }
         if (lab) {
             // Shopping does not consume the limited crafting timer.
             if (labTab != 3 && --labTicks <= 0) {
@@ -644,7 +871,7 @@ public class Level1GamePanel extends JPanel {
             }
             repaint(); return;
         }
-        if (encounter || journal || paused || dead || won) { repaint(); return; }
+        if (encounter || journal || dead || won) { repaint(); return; }
         ticks++;
         if (hurtTicks > 0) hurtTicks--;
         if (throwCooldown > 0) throwCooldown--;
@@ -670,6 +897,7 @@ public class Level1GamePanel extends JPanel {
             if (++waveTimer > 105 && wave < 4) {
                 wave++; spawned = 0; spawnTimer = 80; waveTimer = 0;
                 message("Wave " + wave + " incoming!");
+                autoSave();
             }
         } else waveTimer = 0;
         for (Enemy z : new ArrayList<>(enemies)) {
@@ -712,7 +940,18 @@ public class Level1GamePanel extends JPanel {
                     z.hp -= 2; z.flash = 14;
                     if (z.hp <= 0) {
                         enemies.remove(z); stabilized[z.type]++; reward();
-                        if (z.type == 3) { won = true; message("Mutated Survivor stabilized! Level 1 complete."); }
+                        if (z.type == 3) {
+                            won = true;
+                            message("Mutated Survivor stabilized! Level 1 complete.");
+                            try {
+                                SaveManager.markCompleted(1);
+                                saveProgress();
+                            } catch (IOException ex) {
+                                JOptionPane.showMessageDialog(this,
+                                    "Level completed, but the save failed:\n" + ex.getMessage(),
+                                    "Save Failed", JOptionPane.ERROR_MESSAGE);
+                            }
+                        }
                     }
                 } else message("Wrong treatment for " + NAMES[z.type] + ".");
             }
@@ -903,7 +1142,22 @@ public class Level1GamePanel extends JPanel {
         vials[equipped]--; throwCooldown = 26;
     }
 
+    private boolean hudControlsAvailable() {
+        return !paused && !lab && !journal && !encounter && !dead && !won;
+    }
+
     private void click(int x, int y) {
+        // Pause menu must receive clicks before any underlying screen.
+        if (paused) {
+            if (PAUSE_RESUME.contains(x, y)) openPauseMenu();
+            else if (PAUSE_SAVE_EXIT.contains(x, y)) saveAndReturnToMenu();
+            else if (PAUSE_EXIT_NO_SAVE.contains(x, y)) exitWithoutSaving();
+            return;
+        }
+        if (hudControlsAvailable()) {
+            if (HUD_PAUSE.contains(x, y)) { openPauseMenu(); return; }
+            if (HUD_EXIT.contains(x, y)) { showExitOptions(); return; }
+        }
         if (encounter) {
             FontMetrics fm = getFontMetrics(new Font("SansSerif", Font.PLAIN, 11));
             if (popupLayout(fm).button().contains(x, y)) encounter = false;
@@ -911,13 +1165,13 @@ public class Level1GamePanel extends JPanel {
         }
         if (dead || won) {
             if (new Rectangle(362, 325, 236, 38).contains(x, y)) {
-                if (won && onWin != null) onWin.run(); else reset();
+                if (won && onWin != null) onWin.run();
+                else { reset(); autoSave(); }
             }
             return;
         }
         if (lab) { clickLab(x, y); return; }
         if (journal) { clickJournal(x, y); return; }
-        if (paused) { paused = false; return; }
         for (int i = 0; i < 4; i++) {
             int slotX = HOTBAR_X + i * (HOTBAR_SLOT_W + HOTBAR_GAP);
             if (new Rectangle(slotX, HOTBAR_Y, HOTBAR_SLOT_W, HOTBAR_SLOT_H).contains(x, y)) {
@@ -1031,10 +1285,10 @@ public class Level1GamePanel extends JPanel {
         for (Potion p : shots) drawPotion(g, p);
         // Targeting remains automatic; no green bar or target indicator above zombies.
         drawHUD(g);
-        if (encounter) drawEncounter(g);
+        if (paused) drawPauseMenu(g);
+        else if (encounter) drawEncounter(g);
         else if (lab) drawLab(g);
         else if (journal) drawJournal(g);
-        else if (paused) drawEnd(g, "PAUSED", "Press P or click to resume", false);
         else if (dead) drawEnd(g, "GAME OVER", "Your scientist was overwhelmed.", false);
         else if (won) drawEnd(g, "LEVEL 1 COMPLETE", "The Mutated Survivor has been stabilized!", true);
         g.dispose();
@@ -1257,6 +1511,11 @@ public class Level1GamePanel extends JPanel {
         int total = 0; for (int n : stabilized) total += n;
         label(g, "STABILIZED  " + total, 735, 61, 11, WHITE, true);
         label(g, "MEDKITS  " + medkits, 846, 61, 10, WHITE, true);
+        // Icon-only controls occupy the top HUD gap, not the battlefield itself.
+        if (hudControlsAvailable()) {
+            drawHudControl(g, HUD_PAUSE, true, hoveredHudControl == 1);
+            drawHudControl(g, HUD_EXIT, false, hoveredHudControl == 2);
+        }
         // Show EVERY crafted potion type, including its individual inventory count.
         // Selection never consumes a vial; only throwing does.
         hudPanel(g, 14, 461, 539, 65);
@@ -1270,6 +1529,46 @@ public class Level1GamePanel extends JPanel {
             label(g, fit(g, notice, 502, 11), 231, 435, 11, new Color(245, 207, 155), true);
         }
     }
+    // Compact 30x30 pixel-style pause/exit controls, centered in the top HUD gap.
+    private void drawHudControl(Graphics2D g, Rectangle r, boolean pauseIcon, boolean hover) {
+        Graphics2D b = (Graphics2D) g.create();
+        b.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        int x = r.x, y = r.y, w = r.width, h = r.height;
+        int cut = 5;
+        Polygon frame = new Polygon(
+            new int[]{x + cut, x + w - cut - 1, x + w - 1, x + w - 1,
+                x + w - cut - 1, x + cut, x, x},
+            new int[]{y, y, y + cut, y + h - cut - 1,
+                y + h - 1, y + h - 1, y + h - cut - 1, y + cut}, 8);
+        b.setColor(new Color(10, 7, 20, 100));
+        b.fillRect(x + 2, y + 3, w - 2, h - 2);
+        b.setPaint(new GradientPaint(x, y,
+            hover ? new Color(94, 65, 139) : new Color(45, 33, 70),
+            x, y + h,
+            hover ? new Color(67, 43, 112) : new Color(27, 23, 48)));
+        b.fillPolygon(frame);
+        b.setColor(hover ? new Color(242, 205, 255) : new Color(151, 116, 196));
+        b.setStroke(new BasicStroke(hover ? 2f : 1f));
+        b.drawPolygon(frame);
+        b.setColor(hover ? new Color(234, 183, 255) : new Color(127, 90, 171));
+        b.fillRect(x + 6, y + 3, 7, 2);
+        b.setColor(hover ? new Color(250, 230, 255) : new Color(216, 190, 245));
+        int cx = x + w / 2, cy = y + h / 2;
+        if (pauseIcon) {
+            b.fillRect(cx - 6, cy - 7, 4, 14);
+            b.fillRect(cx + 2, cy - 7, 4, 14);
+        } else {
+            b.setStroke(new BasicStroke(2f));
+            b.drawLine(cx - 9, cy - 8, cx - 9, cy + 8);
+            b.drawLine(cx - 9, cy - 8, cx - 2, cy - 8);
+            b.drawLine(cx - 9, cy + 8, cx - 2, cy + 8);
+            b.fillRect(cx - 4, cy - 2, 11, 4);
+            b.fillPolygon(new int[]{cx + 4, cx + 10, cx + 4},
+                new int[]{cy - 6, cy, cy + 6}, 3);
+        }
+        b.dispose();
+    }
+
     private void drawPotionSlot(Graphics2D g, int type) {
         int x = HOTBAR_X + type * (HOTBAR_SLOT_W + HOTBAR_GAP), y = HOTBAR_Y;
         boolean active = equipped == type;
@@ -1540,6 +1839,21 @@ public class Level1GamePanel extends JPanel {
             label(g, fit(g, "UNLOCKED FORMULA: " + FORMULA[i], 522, 10), 345, Math.min(470, end + 13),
                     10, new Color(186, 231, 165), true);
     }
+    private void drawPauseMenu(Graphics2D g) {
+        g.setColor(new Color(7, 5, 17, 215));
+        g.fillRect(0, 0, W, H);
+        panel(g, 252, 98, 456, 341, 245);
+        centered(g, "GAME MENU", 252, 119, 456, 54, 26, PURPLE, true);
+        centered(g, "ESC / P to resume", 252, 172, 456, 22, 12, MUTED, false);
+        button(g, PAUSE_RESUME.x, PAUSE_RESUME.y, PAUSE_RESUME.width,
+            PAUSE_RESUME.height, "RESUME", new Color(98, 65, 146));
+        button(g, PAUSE_SAVE_EXIT.x, PAUSE_SAVE_EXIT.y, PAUSE_SAVE_EXIT.width,
+            PAUSE_SAVE_EXIT.height, "SAVE & EXIT", new Color(78, 100, 100));
+        button(g, PAUSE_EXIT_NO_SAVE.x, PAUSE_EXIT_NO_SAVE.y, PAUSE_EXIT_NO_SAVE.width,
+            PAUSE_EXIT_NO_SAVE.height, "EXIT WITHOUT SAVING", new Color(91, 54, 76));
+        centered(g, "Save & Exit returns to the Main Menu", 252, 400, 456, 22, 11, MUTED, false);
+    }
+
     private void drawEnd(Graphics2D g, String title, String sub, boolean victory) {
         g.setColor(new Color(7, 5, 17, 205)); g.fillRect(0, 0, W, H);
         panel(g, 260, 164, 440, 215, 244);
