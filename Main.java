@@ -1,4 +1,12 @@
 
+import battlefield.level1.Level1GamePanel;
+import battlefield.level1.SaveManager;
+import battlefield.level2.Level2GamePanel;
+import battlefield.level3.Level3GamePanel;
+import battlefield.level4.Level4GamePanel;
+import game.AudioManager;
+import game.GameManager;
+import game.Scientist;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -10,13 +18,6 @@ import java.util.Set;
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
-import battlefield.level1.Level1GamePanel;
-import battlefield.level1.SaveManager;
-import game.GameManager;
-import game.AudioManager;
-import game.Scientist;
-import battlefield.level2.Level2GamePanel;
-import battlefield.level3.Level3GamePanel;
 
 public class Main extends JFrame {
 
@@ -27,6 +28,10 @@ public class Main extends JFrame {
     private Level1GamePanel currentLevel1;
     private Level2GamePanel currentLevel2;
     private Level3GamePanel currentLevel3;
+    private Level4GamePanel currentLevel4;
+    private boolean level4EndingShown;
+    private OutbreakIntro4 currentIntro4;
+    private OutbreakIntro4.DialoguePanel currentLevel4Dialogue;
     private boolean level2EndingShown;
     private boolean endingShown;
     private OutbreakIntro currentIntro;
@@ -388,7 +393,8 @@ public class Main extends JFrame {
             || name.equals("Level2Narration") || name.equals("Level2Conversation")
             || name.equals("Level2EndingDialogue") || name.equals("Level3Narration")
             || name.equals("Level3Conversation") || name.equals("Level3EndingDialogue")
-            || name.equals("Level3Unlocked") || name.equals("Level4Unlocked");
+            || name.equals("Level3Unlocked") || name.equals("Level4Unlocked")
+            || name.equals("Level5Unlocked");
     }
 
     // START GAME -> INTRO -> CONVERSATION -> ACTUAL LEVEL 1
@@ -592,6 +598,11 @@ public class Main extends JFrame {
             // Resume unfinished factory gameplay; otherwise play the intro.
             if (hasSavedLevel3()) enterLevel3(true);
             else startLevel3Intro();
+        } else if (level == 4) {
+            int savedIndex = findSavedScientistIndex();
+            if (savedIndex >= 0) selectedScientistIndex = savedIndex;
+            if (hasSavedLevel4()) enterLevel4(true);
+            else startLevel4Intro();
         } else {
             JOptionPane.showMessageDialog(this,
                 "Level " + level + " is unlocked, but its gameplay is not connected yet.",
@@ -602,6 +613,7 @@ public class Main extends JFrame {
     private void showLevelSelection() {
         clearLevel2Screens();
         clearLevel3Screens();
+        clearLevel4Screens();
         if (levelSelection != null) screens.remove(levelSelection);
         levelSelection = new ContinueGame(
             this::openSelectedLevel,
@@ -615,6 +627,11 @@ public class Main extends JFrame {
     }
 
     private void confirmExitApplication() {
+        if (currentLevel4 != null) {
+            currentLevel4.openPauseMenu();
+            showScreen("Level4Battlefield");
+            return;
+        }
         if (currentLevel3 != null) {
             currentLevel3.openPauseMenu();
             showScreen("Level3");
@@ -650,7 +667,9 @@ public class Main extends JFrame {
         if (currentIntro != null) currentIntro.stop();
         if (currentIntro2 != null) currentIntro2.stop();
         if (currentIntro3 != null) currentIntro3.stop();
+        if (currentIntro4 != null) currentIntro4.stop();
         if (currentLevel3 != null) currentLevel3.disposeGame();
+        if (currentLevel4 != null) currentLevel4.disposeGame();
         stopMenuMusic();
         AudioManager.shutdown();
         dispose();
@@ -686,6 +705,7 @@ public class Main extends JFrame {
 
     private void returnToMainMenu() {
         GameManager.getInstance().endGame();
+        clearLevel4Screens();
         clearLevel2Screens();
         clearLevel3Screens();
         if (currentIntro != null) {
@@ -951,6 +971,135 @@ public class Main extends JFrame {
             screens.remove(currentLevel2Dialogue);
             currentLevel2Dialogue = null;
         }
+    }
+
+    private void startLevel4Intro() {
+        if (SaveManager.highestUnlockedLevel() < 4) {
+            showLevelSelection();
+            return;
+        }
+        int savedIndex = findSavedScientistIndex();
+        if (savedIndex >= 0) selectedScientistIndex = savedIndex;
+        clearLevel2Screens();
+        clearLevel3Screens();
+        clearLevel4Screens();
+        if (currentLevel1 != null) {
+            currentLevel1.disposeGame();
+            screens.remove(currentLevel1);
+            currentLevel1 = null;
+        }
+        currentIntro4 = OutbreakIntro4.opening(this::showLevel4Conversation);
+        screens.add(currentIntro4, "Level4Narration");
+        screens.revalidate();
+        showScreen("Level4Narration");
+        currentIntro4.start();
+    }
+
+    private void showLevel4Conversation() {
+        if (currentIntro4 != null) {
+            currentIntro4.stop();
+            screens.remove(currentIntro4);
+            currentIntro4 = null;
+        }
+        if (currentLevel4Dialogue != null) screens.remove(currentLevel4Dialogue);
+        currentLevel4Dialogue = new OutbreakIntro4.DialoguePanel(
+            selectedScientistIndex,
+            OutbreakIntro4.scientistConversation(),
+            () -> {
+                clearLevel4Screens();
+                enterLevel4(false);
+            }
+        );
+        screens.add(currentLevel4Dialogue, "Level4Conversation");
+        screens.revalidate();
+        showScreen("Level4Conversation");
+        SwingUtilities.invokeLater(() -> {
+            if (currentLevel4Dialogue != null) currentLevel4Dialogue.requestFocusInWindow();
+        });
+    }
+
+    private static boolean hasSavedLevel4() {
+        Properties p = SaveManager.load();
+        return "true".equals(p.getProperty("level4.started"))
+            && !"true".equals(p.getProperty("level4.won"))
+            && p.getProperty("scientist") != null;
+    }
+
+    private void enterLevel4(boolean restore) {
+        if (SaveManager.highestUnlockedLevel() < 4) { showLevelSelection(); return; }
+        int savedIndex = findSavedScientistIndex();
+        if (savedIndex >= 0) selectedScientistIndex = savedIndex;
+        clearLevel2Screens(); clearLevel3Screens(); clearLevel4Screens();
+        if (currentLevel1 != null) {
+            currentLevel1.disposeGame(); screens.remove(currentLevel1); currentLevel1 = null;
+        }
+        level4EndingShown = false;
+        currentLevel4 = new Level4GamePanel(resolveScientistSpriteKey(selectedScientistIndex),
+            this::showLevel4Ending, this::returnToMainMenu);
+        if (restore && !currentLevel4.loadProgress()) {
+            currentLevel4.disposeGame(); currentLevel4 = null;
+            JOptionPane.showMessageDialog(this,
+                "Level 4 save could not be restored. Your saved data was not overwritten.",
+                "Load Failed", JOptionPane.WARNING_MESSAGE);
+            showLevelSelection(); return;
+        }
+        if (!restore) {
+            try { currentLevel4.saveProgress(); }
+            catch (IOException e) { JOptionPane.showMessageDialog(this,
+                "Could not save Level 4: " + e.getMessage()); }
+        }
+        screens.add(currentLevel4, "Level4Battlefield"); screens.revalidate();
+        showScreen("Level4Battlefield");
+        SwingUtilities.invokeLater(() -> currentLevel4.requestFocusInWindow());
+    }
+
+    private void clearLevel4Screens() {
+        if (currentLevel4 != null) {
+            currentLevel4.disposeGame(); screens.remove(currentLevel4); currentLevel4 = null;
+        }
+        if (currentIntro4 != null) {
+            currentIntro4.stop();
+            screens.remove(currentIntro4);
+            currentIntro4 = null;
+        }
+        if (currentLevel4Dialogue != null) {
+            screens.remove(currentLevel4Dialogue);
+            currentLevel4Dialogue = null;
+        }
+    }
+
+    // Triggered after the Regenerator Zombie boss is stabilized in Level 4.
+    public void showLevel4Ending() {
+        if (level4EndingShown) return;
+        try {
+            SaveManager.markCompleted(4);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this,
+                "Could not save Level 4 completion:\n" + e.getMessage(),
+                "Save Failed", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        level4EndingShown = true;
+        clearLevel4Screens();
+        currentLevel4Dialogue = new OutbreakIntro4.DialoguePanel(
+            selectedScientistIndex,
+            OutbreakIntro4.level4EndingConversation(),
+            () -> {
+                if (currentLevel4Dialogue != null) {
+                    screens.remove(currentLevel4Dialogue);
+                    currentLevel4Dialogue = null;
+                }
+                currentIntro4 = OutbreakIntro4.level5Unlocked(this::showLevelSelection);
+                screens.add(currentIntro4, "Level5Unlocked");
+                screens.revalidate();
+                showScreen("Level5Unlocked");
+                currentIntro4.start();
+            }
+        );
+        screens.add(currentLevel4Dialogue, "Level4EndingDialogue");
+        screens.revalidate();
+        showScreen("Level4EndingDialogue");
+        currentLevel4Dialogue.requestFocusInWindow();
     }
 
     // LEVEL 3: Toxic Chemical Factory narration -> scientist dialogue -> game.
