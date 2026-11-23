@@ -60,7 +60,7 @@ public final class Level4GamePanel extends JPanel {
         "Distilled Water", "Activated Carbon", "Sodium Bicarbonate", "Zeolite",
         "Silica Gel", "Calcium Carbonate", "Sodium Thiosulfate", "Potassium Iodide"
     };
-    private static final int[] PRICES = {4, 2, 6, 7, 6, 5, 4, 7};
+    private static final int[] PRICES = {2, 2, 4, 5, 4, 4, 3, 5};
     private static final int[] START_STOCK = {12, 9, 8, 8, 8, 7, 7, 7};
     private static final int[][] RECIPES = {
         {0, 1, 2},       // Experiment 01: carrier, adsorbent, buffer
@@ -150,7 +150,8 @@ public final class Level4GamePanel extends JPanel {
 
     private double px = 132, py = 392, camera, hp = 100;
     private int ticks, wave = 1, spawned, spawnTimer = 90, waveTimer;
-    private int xp, coins = 32, medkits = 3, equipped, target, batchQty = 1;
+    private int xp, coins = 55, medkits = 3, equipped, target, batchQty = 1;
+    private int lastEmergencyWave; // one limited supply grant per wave, persisted in saves
     private int hurtTicks, throwCooldown, labTicks, labTab, journalTab = 2, journalChoice;
     private int noticeTicks, encounterType = -1, hoverControl;
     private String facing = "right";
@@ -537,8 +538,11 @@ public final class Level4GamePanel extends JPanel {
         if (!encounter && spawned >= quota() && enemies.isEmpty()) {
             if (++waveTimer >= 95 && wave < 4) {
                 wave++; spawned = 0; spawnTimer = 85; waveTimer = 0;
-                message(wave == 4 ? "WARNING: REACTOR CHAMBER - ABOMINATION DETECTED"
-                        : "WAVE " + wave + " - new facility mutations detected.");
+                int supplyBonus = wave == 2 ? 22 : wave == 3 ? 30 : 42;
+                coins += supplyBonus;
+                // A small shipment of relevant chemicals, not a free full potion stockpile.
+                for (int chemical : RECIPES[wave - 1]) stock[chemical] += 2;
+                message("SUPPLY DROP +" + supplyBonus + " coins! WAVE " + wave + " - new mutations detected.");
                 try { saveProgress(); } catch (IOException e) { message("Checkpoint save failed: " + e.getMessage()); }
             }
         } else waveTimer = 0;
@@ -677,11 +681,11 @@ public final class Level4GamePanel extends JPanel {
         stabilized[z.type]++;
         Reward earned = GameplayBridge.rewards(4, z.type);
         int[] progress = GameplayBridge.award(xp, coins, earned);
-        xp = progress[0]; coins = progress[1];
+        xp = progress[0]; coins = progress[1] + (z.type == 3 ? 22 : 7 + z.type * 3);
         int reward = rng.nextInt(CHEMS.length - 2);
         stock[reward]++;
         if (rng.nextInt(6) == 0) medkits++;
-        message(NAMES[z.type] + " stabilized! XP, coins and an ingredient earned.");
+        message(NAMES[z.type] + " stabilized! XP, bonus coins and an ingredient earned.");
         if (z.type == 3) completeLevel();
     }
     private void completeLevel() {
@@ -747,7 +751,8 @@ public final class Level4GamePanel extends JPanel {
     private void reset() {
         px = 132; py = 392; camera = 0; hp = 100;
         ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
-        xp = 0; coins = 22; medkits = 2; equipped = 0; target = 0; batchQty = 1;
+        xp = 0; coins = 55; medkits = 2; equipped = 0; target = 0; batchQty = 1;
+        lastEmergencyWave = 0;
         hurtTicks = 0; throwCooldown = 0; labTicks = 0; labTab = 0;
         journalTab = 2; journalChoice = 0; encounterType = -1;
         facing = "right"; encountered = null; paused = false; lab = false; journal = false;
@@ -780,6 +785,7 @@ public final class Level4GamePanel extends JPanel {
             p.setProperty("level4.researchPoints", Integer.toString(
                 GameManager.getInstance().getPlayer().getResearchPoints()));
         p.setProperty("level4.coins", Integer.toString(coins));
+        p.setProperty("level4.lastEmergencyWave", Integer.toString(lastEmergencyWave));
         p.setProperty("level4.medkits", Integer.toString(medkits));
         p.setProperty("level4.equipped", Integer.toString(equipped));
         p.setProperty("level4.target", Integer.toString(target));
@@ -881,6 +887,7 @@ public final class Level4GamePanel extends JPanel {
             waveTimer = parseInt(p, "level4.waveTimer", 0);
             xp = parseInt(p, "level4.xp", 0);
             coins = parseInt(p, "level4.coins", 22);
+            lastEmergencyWave = clamp(parseInt(p, "level4.lastEmergencyWave", 0), 0, 4);
             medkits = parseInt(p, "level4.medkits", 2);
             equipped = clamp(parseInt(p, "level4.equipped", 0), 0, 3);
             target = clamp(parseInt(p, "level4.target", 0), 0, 3);
@@ -980,6 +987,15 @@ public final class Level4GamePanel extends JPanel {
         Arrays.fill(selected, false);
         message("Crafted " + batchQty + " " + NAMES[recipe] + " potion(s)! Press SPACE or click to throw.");
     }
+    private void grantEmergencySupplies() {
+        // No infinite farming: once per wave and recorded in the save file.
+        if (coins >= 12 || lastEmergencyWave >= wave) return;
+        lastEmergencyWave = wave;
+        coins += 18;
+        labNotice = "Emergency research fund: +18 coins (once this wave).";
+        try { saveProgress(); } catch (IOException e) { message("Supply grant save failed."); }
+    }
+
     private void purchase(int index) {
         if (coins < PRICES[index]) { labNotice = "Not enough coins."; return; }
         int remaining = GameplayBridge.buy(coins, CHEMS, stock, index, PRICES[index]);
@@ -1043,7 +1059,9 @@ public final class Level4GamePanel extends JPanel {
         if (new Rectangle(884, 29, 31, 30).contains(x, y)) { lab = false; return; }
         for (int i = 0; i < NAV.length; i++) {
             if (new Rectangle(44, 110 + i * 57, 138, 44).contains(x, y)) {
-                labTab = i; return;
+                labTab = i;
+                if (i == 3) grantEmergencySupplies();
+                return;
             }
         }
         if (labTab == 0) {
