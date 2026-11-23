@@ -1,5 +1,7 @@
 package battlefield.level2;
 
+import game.AudioManager;
+
 import battlefield.level1.SaveManager;
 import game.GameManager;
 import game.GameplayBridge;
@@ -816,6 +818,13 @@ public final class Level2GamePanel extends JPanel {
         return !paused && !lab && !journal && !encounter && !dead && !won;
     }
     private void handleClick(int x, int y) {
+        if (paused || lab || journal || encounter || dead || won
+                || (hudControlsAvailable() && (HUD_PAUSE.contains(x, y) || HUD_EXIT.contains(x, y)))
+                || new Rectangle(568, 473, 181, 48).contains(x, y)
+                || new Rectangle(760, 473, 184, 48).contains(x, y)) {
+            AudioManager.playClick();
+        }
+
         if (won) {
             if (new Rectangle(362, 325, 236, 38).contains(x, y)) advanceAfterWin();
             return;

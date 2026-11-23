@@ -13,6 +13,7 @@ import javax.swing.*;
 import battlefield.level1.Level1GamePanel;
 import battlefield.level1.SaveManager;
 import game.GameManager;
+import game.AudioManager;
 import game.Scientist;
 import battlefield.level2.Level2GamePanel;
 import battlefield.level3.Level3GamePanel;
@@ -61,6 +62,7 @@ public class Main extends JFrame {
         screens.add(new GameInstructions(this), "Instructions");
 
         add(screens);
+        AudioManager.installButtonClicks();
         showScreen("MainMenu");
     }
 
@@ -359,6 +361,7 @@ public class Main extends JFrame {
     public void showScreen(String screenName) {
 
         cardLayout.show(screens, screenName);
+        AudioManager.setAmbientEnabled(isStoryOrGameplayScreen(screenName));
 
         if (screenName.equals("Instructions")) {
             for (Component component :
@@ -377,6 +380,15 @@ public class Main extends JFrame {
         } else {
             stopMenuMusic();
         }
+    }
+
+    private static boolean isStoryOrGameplayScreen(String name) {
+        return name.equals("StoryNarration") || name.equals("StoryDialogue")
+            || name.equals("Level1") || name.equals("Level2") || name.equals("Level3")
+            || name.equals("Level2Narration") || name.equals("Level2Conversation")
+            || name.equals("Level2EndingDialogue") || name.equals("Level3Narration")
+            || name.equals("Level3Conversation") || name.equals("Level3EndingDialogue")
+            || name.equals("Level3Unlocked") || name.equals("Level4Unlocked");
     }
 
     // START GAME -> INTRO -> CONVERSATION -> ACTUAL LEVEL 1
@@ -640,6 +652,7 @@ public class Main extends JFrame {
         if (currentIntro3 != null) currentIntro3.stop();
         if (currentLevel3 != null) currentLevel3.disposeGame();
         stopMenuMusic();
+        AudioManager.shutdown();
         dispose();
     }
 

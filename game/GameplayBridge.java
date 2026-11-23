@@ -100,12 +100,36 @@ public final class GameplayBridge {
     public static Reward rewards(int level, int type) {
         return ZombieTypes.create(level, type, 1).dropRewards();
     }
-    public static int[] award(int oldXp, int oldCoins, Reward reward) {
-        Scientist scientist = GameManager.getInstance().getPlayer();
-        if (scientist == null) scientist = Scientist.forKey("nicole");
-        scientist.restoreProgress(oldXp, oldCoins, scientist.getResearchPoints());
-        scientist.collectReward(reward);
-        return new int[] {scientist.getExperience(), scientist.getCoins()};
+        public static int[] award(int oldXp, int oldCoins, Reward reward) {
+    Scientist scientist = GameManager.getInstance().getPlayer();
+
+    if (scientist == null) {
+        scientist = Scientist.forKey("nicole");
+    }
+
+    scientist.restoreProgress(
+        oldXp,
+        oldCoins,
+        scientist.getResearchPoints()
+    );
+
+    scientist.collectReward(reward);
+
+    int newCoins = scientist.getCoins();
+
+    System.out.println("[REWARD] Level reward executed!");
+    System.out.println("[REWARD] Old coins: " + oldCoins);
+    System.out.println("[REWARD] New coins: " + newCoins);
+
+    if (newCoins > oldCoins) {
+        System.out.println("[REWARD] Playing coin sound!");
+        AudioManager.playCoinGain();
+    }
+
+    return new int[] {
+        scientist.getExperience(),
+        newCoins
+        };
     }
     public static int buy(int coins, String[] names, int[] stock, int ingredient, int price) {
         if (ingredient < 0 || ingredient >= names.length) return -1;
