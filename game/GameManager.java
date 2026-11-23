@@ -19,7 +19,7 @@ public class GameManager {
         levels.put(2, new GameLevel(2, "Contaminated Hospital",
             Arrays.asList("Acid Zombie", "Patient Zero", "Toxic Zombie", "Plague Doctor"), "Stabilize Plague Doctor"));
         levels.put(3, new GameLevel(3, "Toxic Chemical Factory", Arrays.asList("Toxic Brute", "Venom Spitter", "Explosive Zombie", "Chemical Abomination"), "Complete Level 3 boss"));
-        levels.put(4, new GameLevel(4, "Lost Research Facility", Arrays.asList("Security Guard", "Crystal Mutant", "Hazmat Zombie", "Researcher Zombie"), "Complete Level 4 boss"));
+        levels.put(4, new GameLevel(4, "Lost Research Facility", Arrays.asList("Experiment 01", "Mutant Stalker", "Project Chimera", "Regenerator Zombie"), "Complete Level 4 boss"));
         levels.put(5, new GameLevel(5, "Genesis Laboratory", Arrays.asList("Elite Infected", "Biohazard Guardian", "Alpha Mutant", "Patient Zero - The Origin"), "Complete Final Cure"));
     }
     public static GameManager getInstance() { return INSTANCE; }

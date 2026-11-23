@@ -5,7 +5,7 @@ public final class ZombieTypes {
     private ZombieTypes() { }
 
     public static Zombie create(int level, int type, int currentHealth) {
-        if (type < 0 || type > 3 || (level != 1 && level != 2 && level != 3))
+        if (type < 0 || type > 3 || (level < 1 || level > 4))
             throw new IllegalArgumentException("Unsupported level or zombie type");
         Zombie z;
         if (level == 1) {
@@ -22,12 +22,19 @@ public final class ZombieTypes {
                 case 2: z = new ToxicZombie(); break;
                 default: z = new PlagueDoctor(); break;
             }
-        } else {
+        } else if (level == 3) {
             switch (type) {
                 case 0: z = new ToxicBrute(); break;
                 case 1: z = new VenomSpitter(); break;
                 case 2: z = new ExplosiveZombie(); break;
                 default: z = new ChemicalAbomination(); break;
+            }
+        } else {
+            switch (type) {
+                case 0: z = new Experiment01(); break;
+                case 1: z = new MutantStalker(); break;
+                case 2: z = new ProjectChimera(); break;
+                default: z = new RegeneratorZombie(); break;
             }
         }
         z.setHealth(currentHealth);
@@ -104,5 +111,30 @@ public final class ZombieTypes {
         @Override public int attack() { return 18; }
         @Override public int receiveTreatment(Potion p) { return applyMatchingTreatment(p, 1); }
         @Override public Reward dropRewards() { return new Reward(150, 65, null, 0); }
+    }
+
+    private static class Experiment01 extends Zombie {
+        Experiment01() { super("Experiment 01", "Experimental tissue mutation", "Layered contamination", "L4-0", 3); }
+        @Override public int attack() { return 14; }
+        @Override public int receiveTreatment(Potion p) { return applyMatchingTreatment(p, 1); }
+        @Override public Reward dropRewards() { return new Reward(40, 24, null, 0); }
+    }
+    private static class MutantStalker extends Zombie {
+        MutantStalker() { super("Mutant Stalker", "Accelerated mutation", "Crystalline residue", "L4-1", 4); }
+        @Override public int attack() { return 16; }
+        @Override public int receiveTreatment(Potion p) { return applyMatchingTreatment(p, 1); }
+        @Override public Reward dropRewards() { return new Reward(55, 32, null, 0); }
+    }
+    private static class ProjectChimera extends Zombie {
+        ProjectChimera() { super("Project Chimera", "Hybrid bio-chemical mutation", "Multiple reactive barriers", "L4-2", 4); }
+        @Override public int attack() { return 18; }
+        @Override public int receiveTreatment(Potion p) { return applyMatchingTreatment(p, 1); }
+        @Override public Reward dropRewards() { return new Reward(70, 42, null, 0); }
+    }
+    private static class RegeneratorZombie extends Zombie {
+        RegeneratorZombie() { super("Regenerator Zombie", "Regenerative mutation", "Multi-stage resistance", "L4-3", 8); }
+        @Override public int attack() { return 22; }
+        @Override public int receiveTreatment(Potion p) { return applyMatchingTreatment(p, 1); }
+        @Override public Reward dropRewards() { return new Reward(200, 90, null, 0); }
     }
 }
