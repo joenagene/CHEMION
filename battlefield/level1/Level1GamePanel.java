@@ -14,7 +14,6 @@ import java.awt.geom.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.Properties;
 import java.util.*;
 import java.util.List;
 
@@ -91,6 +90,7 @@ public class Level1GamePanel extends JPanel {
     private final boolean[] unlockedRecipes = new boolean[4];
     private final Set<Integer> pressed = new HashSet<>();
     private final javax.swing.Timer timer;
+    private boolean cinematicActive = false;
     private BufferedImage town;
 
     private double px = 130, py = 386, camera = 0, hp = 100;
@@ -175,9 +175,16 @@ public class Level1GamePanel extends JPanel {
         reset(); createTown(); keys();
         addMouseListener(new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
+
+                if (cinematicActive) return;
+
                 requestFocusInWindow();
-                click((int) (e.getX() * W / (double) Math.max(1, getWidth())),
-                      (int) (e.getY() * H / (double) Math.max(1, getHeight())));
+
+                click(
+                    (int) (e.getX() * W / (double) Math.max(1, getWidth())),
+                    (int) (e.getY() * H / (double) Math.max(1, getHeight()))
+                );
+
                 repaint();
             }
             @Override public void mouseExited(MouseEvent e) {
@@ -207,11 +214,27 @@ public class Level1GamePanel extends JPanel {
         timer.start();
     }
     @Override public void addNotify() { super.addNotify(); SwingUtilities.invokeLater(this::requestFocusInWindow); }
-    public void disposeGame() { timer.stop(); }
+    public void disposeGame() { timer.stop(); AudioManager.stopZombieSounds(); }
+    
+    public void setCinematicActive(boolean active) {
+    cinematicActive = active;
+
+    pressed.clear();
+
+    if (active) {
+        timer.stop();
+    } else {
+        timer.start();
+        requestFocusInWindow();
+    }
+
+    repaint();
+}
+
 
     /** Pause and resume without losing an open lab, journal, or encounter. */
     public void openPauseMenu() {
-        if (dead || won) return;
+        if (cinematicActive || dead || won) return;
         paused = !paused;
         pressed.clear();
         hoveredHudControl = 0;
@@ -426,10 +449,18 @@ public class Level1GamePanel extends JPanel {
         notice = "Stay alert. The infected are approaching."; noticeTicks = 160;
     }
     private void bind(int key, String name, Runnable action) {
-        getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key, 0), name);
-        getActionMap().put(name, new AbstractAction() {
-            @Override public void actionPerformed(ActionEvent e) { action.run(); repaint(); }
-        });
+    getInputMap(WHEN_IN_FOCUSED_WINDOW).put(
+        KeyStroke.getKeyStroke(key, 0), name
+    );
+
+    getActionMap().put(name, new AbstractAction() {
+        @Override public void actionPerformed(ActionEvent e) {
+            if (cinematicActive) return;
+
+            action.run();
+            repaint();
+        }
+    });
     }
     private void keys() {
         int[] movement = {KeyEvent.VK_W, KeyEvent.VK_A, KeyEvent.VK_S, KeyEvent.VK_D,
@@ -439,7 +470,11 @@ public class Level1GamePanel extends JPanel {
             getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(k, 0, false), name + "D");
             getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(k, 0, true), name + "U");
             getActionMap().put(name + "D", new AbstractAction() {
-                @Override public void actionPerformed(ActionEvent e) { pressed.add(k); }
+                @Override public void actionPerformed(ActionEvent e) {
+    if (!cinematicActive) {
+        pressed.add(k);
+    }
+}
             });
             getActionMap().put(name + "U", new AbstractAction() {
                 @Override public void actionPerformed(ActionEvent e) { pressed.remove(k); }
@@ -876,6 +911,11 @@ public class Level1GamePanel extends JPanel {
 
     private void updateGame() {
         // Pause takes precedence over crafting so the timer truly stops.
+        if (cinematicActive || paused || lab ||
+            encounter || journal || dead || won) {
+
+            AudioManager.stopZombieSounds();
+        }
         if (paused) { repaint(); return; }
         if (lab) {
             // Shopping does not consume the limited crafting timer.
@@ -929,6 +969,9 @@ public class Level1GamePanel extends JPanel {
                 continue;
             }
             double vx = px - z.x, vy = py - z.y, d = Math.hypot(vx, vy);
+            if (d < 900) {
+                AudioManager.playZombieGrowl(z.type);
+            }
             if (d > 28 && d < 1200) {
                 double nx = z.x + vx / d * z.speed();
                 double ny = z.y + vy / d * z.speed();
@@ -956,6 +999,9 @@ public class Level1GamePanel extends JPanel {
                 z.hp = GameplayBridge.applyTreatment(1, z.type, (int) Math.ceil(z.hp), p.type);
                 if (z.hp < beforeTreatment) {
                     z.flash = 14;
+                    if (z.hp > 0) {
+                        AudioManager.playZombieDamage();
+                    }
                     if (z.hp <= 0) {
                         enemies.remove(z); stabilized[z.type]++; reward();
                         if (z.type == 3) {
