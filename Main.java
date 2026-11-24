@@ -4,6 +4,7 @@ import battlefield.level1.SaveManager;
 import battlefield.level2.Level2GamePanel;
 import battlefield.level3.Level3GamePanel;
 import battlefield.level4.Level4GamePanel;
+import battlefield.level5.Level5GamePanel;
 import game.AudioManager;
 import game.GameManager;
 import game.Scientist;
@@ -29,6 +30,10 @@ public class Main extends JFrame {
     private Level2GamePanel currentLevel2;
     private Level3GamePanel currentLevel3;
     private Level4GamePanel currentLevel4;
+    private Level5GamePanel currentLevel5;
+    private OutbreakIntro5 currentIntro5;
+    private OutbreakIntro5.DialoguePanel currentLevel5Dialogue;
+    private boolean level5EndingShown;
     private boolean level4EndingShown;
     private OutbreakIntro4 currentIntro4;
     private OutbreakIntro4.DialoguePanel currentLevel4Dialogue;
@@ -603,14 +608,16 @@ public class Main extends JFrame {
             if (savedIndex >= 0) selectedScientistIndex = savedIndex;
             if (hasSavedLevel4()) enterLevel4(true);
             else startLevel4Intro();
-        } else {
-            JOptionPane.showMessageDialog(this,
-                "Level " + level + " is unlocked, but its gameplay is not connected yet.",
-                "Coming Soon", JOptionPane.INFORMATION_MESSAGE);
+        } else if (level == 5) {
+            int savedIndex = findSavedScientistIndex();
+            if (savedIndex >= 0) selectedScientistIndex = savedIndex;
+            if (hasSavedLevel5()) enterLevel5(true);
+            else startLevel5Intro();
         }
     }
 
     private void showLevelSelection() {
+        clearLevel5Screens();
         clearLevel2Screens();
         clearLevel3Screens();
         clearLevel4Screens();
@@ -627,6 +634,11 @@ public class Main extends JFrame {
     }
 
     private void confirmExitApplication() {
+        if (currentLevel5 != null) {
+            currentLevel5.openPauseMenu();
+            showScreen("Level5Battlefield");
+            return;
+        }
         if (currentLevel4 != null) {
             currentLevel4.openPauseMenu();
             showScreen("Level4Battlefield");
@@ -670,6 +682,8 @@ public class Main extends JFrame {
         if (currentIntro4 != null) currentIntro4.stop();
         if (currentLevel3 != null) currentLevel3.disposeGame();
         if (currentLevel4 != null) currentLevel4.disposeGame();
+        if (currentLevel5 != null) currentLevel5.disposeGame();
+        if (currentIntro5 != null) currentIntro5.stop();
         stopMenuMusic();
         AudioManager.shutdown();
         dispose();
@@ -704,6 +718,7 @@ public class Main extends JFrame {
     }
 
     private void returnToMainMenu() {
+        clearLevel5Screens();
         GameManager.getInstance().endGame();
         clearLevel4Screens();
         clearLevel2Screens();
@@ -971,6 +986,106 @@ public class Main extends JFrame {
             screens.remove(currentLevel2Dialogue);
             currentLevel2Dialogue = null;
         }
+    }
+
+    private static boolean hasSavedLevel5() {
+        Properties p = SaveManager.load();
+        return "true".equals(p.getProperty("level5.started"))
+            && !"true".equals(p.getProperty("level5.won"))
+            && p.getProperty("scientist") != null;
+    }
+    private void startLevel5Intro() {
+        if (SaveManager.highestUnlockedLevel() < 5) { showLevelSelection(); return; }
+        clearLevel2Screens(); clearLevel3Screens(); clearLevel4Screens(); clearLevel5Screens();
+        currentIntro5 = OutbreakIntro5.opening(this::showLevel5Conversation);
+        screens.add(currentIntro5, "Level5Narration"); screens.revalidate();
+        showScreen("Level5Narration"); currentIntro5.start();
+    }
+    private void showLevel5Conversation() {
+        if (currentIntro5 != null) {
+            currentIntro5.stop(); screens.remove(currentIntro5); currentIntro5 = null;
+        }
+        currentLevel5Dialogue = new OutbreakIntro5.DialoguePanel(selectedScientistIndex,
+            OutbreakIntro5.scientistConversation(), () -> {
+                clearLevel5Screens(); enterLevel5(false);
+            });
+        screens.add(currentLevel5Dialogue, "Level5Conversation"); screens.revalidate();
+        showScreen("Level5Conversation");
+        SwingUtilities.invokeLater(() -> currentLevel5Dialogue.requestFocusInWindow());
+    }
+    private void enterLevel5(boolean restore) {
+        if (SaveManager.highestUnlockedLevel() < 5) { showLevelSelection(); return; }
+        clearLevel2Screens(); clearLevel3Screens(); clearLevel4Screens(); clearLevel5Screens();
+        level5EndingShown = false;
+        currentLevel5 = new Level5GamePanel(resolveScientistSpriteKey(selectedScientistIndex),
+            this::showLevel5Ending, this::returnToMainMenu);
+        if (restore && !currentLevel5.loadProgress()) {
+            currentLevel5.disposeGame(); currentLevel5 = null;
+            int choice = JOptionPane.showConfirmDialog(this,
+                "Level 5 checkpoint could not be restored. Restart Level 5?\n"
+                + "Completed Levels 1-4 and your scientist will be preserved.",
+                "Restart Level 5", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (choice == JOptionPane.YES_OPTION) {
+                try {
+                    Properties data = SaveManager.load();
+                    java.nio.file.Path file = SaveManager.saveFile();
+                    if (java.nio.file.Files.exists(file)) {
+                        java.nio.file.Files.copy(file, file.resolveSibling("save-before-level5-reset-"
+                            + java.util.UUID.randomUUID() + ".properties"));
+                    }
+                    data.stringPropertyNames().stream()
+                        .filter(key -> key.startsWith("level5."))
+                        .forEach(data::remove);
+                    SaveManager.save(data);
+                    startLevel5Intro();
+                } catch (IOException ex) {
+                    JOptionPane.showMessageDialog(this, "Could not reset Level 5: " + ex.getMessage(),
+                        "Save Error", JOptionPane.ERROR_MESSAGE);
+                    showLevelSelection();
+                }
+            } else showLevelSelection();
+            return;
+        }
+        if (!restore) {
+            try { currentLevel5.saveProgress(); }
+            catch (IOException e) { JOptionPane.showMessageDialog(this,
+                "Could not save Level 5: " + e.getMessage()); }
+        }
+        screens.add(currentLevel5, "Level5Battlefield"); screens.revalidate();
+        showScreen("Level5Battlefield");
+        SwingUtilities.invokeLater(() -> currentLevel5.requestFocusInWindow());
+    }
+    private void clearLevel5Screens() {
+        if (currentLevel5 != null) {
+            currentLevel5.disposeGame(); screens.remove(currentLevel5); currentLevel5 = null;
+        }
+        if (currentIntro5 != null) {
+            currentIntro5.stop(); screens.remove(currentIntro5); currentIntro5 = null;
+        }
+        if (currentLevel5Dialogue != null) {
+            screens.remove(currentLevel5Dialogue); currentLevel5Dialogue = null;
+        }
+    }
+    public void showLevel5Ending() {
+        if (level5EndingShown) return;
+        try { SaveManager.markCompleted(5); }
+        catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Could not save final mission: " + e.getMessage());
+            return;
+        }
+        level5EndingShown = true;
+        clearLevel5Screens();
+        currentLevel5Dialogue = new OutbreakIntro5.DialoguePanel(selectedScientistIndex,
+            OutbreakIntro5.endingConversation(), () -> {
+                if (currentLevel5Dialogue != null) {
+                    screens.remove(currentLevel5Dialogue); currentLevel5Dialogue = null;
+                }
+                currentIntro5 = OutbreakIntro5.finalEnding(this::showLevelSelection);
+                screens.add(currentIntro5, "GenesisEnding"); screens.revalidate();
+                showScreen("GenesisEnding"); currentIntro5.start();
+            });
+        screens.add(currentLevel5Dialogue, "GenesisEndingDialogue"); screens.revalidate();
+        showScreen("GenesisEndingDialogue"); currentLevel5Dialogue.requestFocusInWindow();
     }
 
     private void startLevel4Intro() {
