@@ -1,8 +1,7 @@
 package battlefield.level2;
 
-import game.AudioManager;
-
 import battlefield.level1.SaveManager;
+import game.AudioManager;
 import game.GameManager;
 import game.GameplayBridge;
 import game.Reward;
@@ -124,7 +123,7 @@ public final class Level2GamePanel extends JPanel {
     private final boolean[] seen = new boolean[4];
     private final boolean[] unlockedRecipes = new boolean[4];
     private final boolean[] selected = new boolean[CHEMS.length];
-    private final BufferedImage hospital = loadHospitalBackground();
+    private final BufferedImage hospital = buildHospital();
 
     private double px = 132, py = 369, camera, hp = 100;
     private int ticks, wave = 1, spawned, spawnTimer = 90, waveTimer;
@@ -1022,89 +1021,140 @@ public final class Level2GamePanel extends JPanel {
         return buildHospital();
     }
 
+    private static void hospitalRect(Graphics2D g, int x, int y, int w, int h, int rgb) {
+        g.setColor(new Color(rgb)); g.fillRect(x,y,w,h);
+    }
+    private static void hospitalMonitor(Graphics2D g,int x,int y) {
+        hospitalRect(g,x,y,56,39,0x151d29);
+        hospitalRect(g,x+4,y+4,48,28,0x254a48);
+        g.setColor(new Color(0x76c6a6));
+        g.drawPolyline(new int[]{x+7,x+17,x+22,x+27,x+32,x+38,x+48},new int[]{y+20,y+20,y+10,y+27,y+16,y+20,y+20},7);
+        hospitalRect(g,x+24,y+39,8,10,0x69777b);
+        hospitalRect(g,x+13,y+49,30,4,0x49575e);
+    }
+    private static void hospitalBed(Graphics2D g,int x,int y) {
+        hospitalRect(g,x+5,y+30,150,10,0x171e29);
+        hospitalRect(g,x,y,150,30,0x53676c);
+        hospitalRect(g,x+4,y+3,142,21,0xa0aaa4);
+        hospitalRect(g,x+8,y+5,29,17,0xd0d3c7);
+        hospitalRect(g,x+43,y+4,100,20,0x526f70);
+        hospitalRect(g,x+43,y+4,100,3,0x77938e);
+        hospitalRect(g,x+80,y+13,23,7,0x69363e);
+        hospitalRect(g,x,y-9,5,40,0x85999b);
+        hospitalRect(g,x+145,y-5,5,36,0x85999b);
+        hospitalRect(g,x+160,y-38,3,72,0x839395);
+        hospitalRect(g,x+151,y-38,20,3,0x839395);
+        hospitalRect(g,x+153,y-34,13,21,0x9eb8b1);
+        hospitalRect(g,x+155,y-25,9,10,0x597f7d);
+        hospitalRect(g,x+150,y+33,24,3,0x839395);
+    }
+    private static void hospitalFloorProps(Graphics2D g, int x, int y, int type) {
+        g.setColor(new Color(10,16,22,100)); g.fillOval(x-4,y+13,48,13);
+        if(type==0) { // fallen wheelchair, flat on the floor
+            g.setColor(new Color(0x18242c)); g.fillOval(x,y,18,23); g.fillOval(x+25,y+2,17,22);
+            g.setColor(new Color(0x718386)); g.drawOval(x+2,y+2,13,18); g.drawOval(x+27,y+4,12,17);
+            hospitalRect(g,x+12,y+3,17,16,0x526c70);
+            hospitalRect(g,x+14,y+5,13,10,0x354c54);
+            hospitalRect(g,x+8,y-3,24,3,0x899795);
+            hospitalRect(g,x+17,y+20,12,4,0x7b8b8a);
+        } else if(type==1) { // spilled medical kit and papers
+            hospitalRect(g,x,y,30,19,0x202b33);
+            hospitalRect(g,x+2,y+1,26,15,0x89978d);
+            hospitalRect(g,x+10,y+3,9,10,0x713b43);
+            hospitalRect(g,x+7,y+6,15,4,0x713b43);
+            hospitalRect(g,x+33,y+9,10,13,0xabb3a5);
+            hospitalRect(g,x+36,y+12,5,2,0x63716d);
+            hospitalRect(g,x-8,y+18,12,4,0x9aa9a4);
+        } else if(type==2) { // overturned instrument tray
+            hospitalRect(g,x,y,40,19,0x26333b);
+            hospitalRect(g,x+2,y+2,36,14,0x758784);
+            hospitalRect(g,x+5,y+4,30,10,0x4c6064);
+            hospitalRect(g,x+9,y+6,17,3,0xb0b9ae);
+            hospitalRect(g,x+29,y+8,4,5,0xb0b9ae);
+            hospitalRect(g,x+12,y+20,18,3,0x8e9e9b);
+        } else { // broken tiles and discarded documents
+            g.setColor(new Color(0x1b252e)); g.drawPolyline(new int[]{x,x+10,x+7,x+24,x+35},new int[]{y+4,y+9,y+17,y+12,y+22},5);
+            hospitalRect(g,x+4,y+12,11,8,0x89958d);
+            hospitalRect(g,x+22,y+1,14,10,0xa4ada0);
+            hospitalRect(g,x+24,y+4,9,2,0x687671);
+        }
+    }
     private static BufferedImage buildHospital() {
-        BufferedImage img = new BufferedImage(WORLD, H, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = img.createGraphics();
-        g.setColor(new Color(13, 17, 33)); g.fillRect(0, 0, WORLD, H);
-        // Repeating hospital walls, tiles and clinical lighting.
-        for (int x = 0; x < WORLD; x += 32) {
-            int sector = x / 790;
-            g.setColor(sector % 2 == 0 ? new Color(36, 46, 60) : new Color(35, 42, 59));
-            g.fillRect(x, 65, 32, FLOOR_TOP - 65);
-            g.setColor(new Color(54, 65, 77)); g.fillRect(x, 62, 31, 3);
-            g.setColor(new Color(24, 30, 46)); g.fillRect(x, 205, 31, 12);
-            g.setColor(new Color(37, 42, 57)); g.fillRect(x, FLOOR_TOP, 32, FLOOR_BOTTOM - FLOOR_TOP);
-            g.setColor(new Color(47, 52, 65)); g.drawLine(x, FLOOR_TOP, x, FLOOR_BOTTOM);
-            for (int y = FLOOR_TOP + 32; y < FLOOR_BOTTOM; y += 32) {
-                g.setColor(new Color(50, 54, 68)); g.drawLine(x, y, x + 31, y);
+        BufferedImage img = new BufferedImage(WORLD,H,BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g=img.createGraphics();
+        Random rng=new Random(2202);
+        String[] names={"EMERGENCY WING","ISOLATION WARD","VENTILATION UNIT","RESEARCH WING"};
+        for(int s=0;s<4;s++) {
+            int x=s*790;
+            hospitalRect(g,x,0,790,H,0x101723);
+            hospitalRect(g,x,65,790,151,s==2?0x354449:0x414e55);
+            hospitalRect(g,x,66,790,5,0x738184);
+            hospitalRect(g,x,153,790,6,0x66817e);
+            hospitalRect(g,x,201,790,15,0x202d35);
+            for(int i=0;i<790;i+=32) for(int y=216;y<448;y+=24) {
+                int shade=44+rng.nextInt(9);
+                g.setColor(new Color(shade,shade+7,shade+10)); g.fillRect(x+i,y,31,23);
             }
-            g.setColor(new Color(17, 19, 31)); g.fillRect(x, FLOOR_BOTTOM, 32, H - FLOOR_BOTTOM);
+            hospitalRect(g,x,448,790,92,0x18212d);
+            hospitalRect(g,x,448,790,5,0x647478);
+            for(int i=0;i<790;i+=158) {
+                hospitalRect(g,x+i+30,27,98,6,0x7e9995);
+                g.setColor(new Color(110,190,170,15)); g.fillRect(x+i+20,33,118,175);
+            }
+            hospitalRect(g,x+278,76,270,28,0x192831);
+            g.setFont(new Font("Monospaced",Font.BOLD,15)); g.setColor(new Color(0xb7d4cc));
+            g.drawString(names[s],x+292,95);
+            for(int i=0;i<2;i++) {
+                int d=x+25+i*630;
+                hospitalRect(g,d,109,106,103,0x1b2932);
+                hospitalRect(g,d+5,114,96,98,0x52666a);
+                hospitalRect(g,d+11,120,39,47,0x263d46);
+                hospitalRect(g,d+56,120,39,47,0x263d46);
+                hospitalRect(g,d+51,114,3,98,0x202c33);
+                hospitalRect(g,d+43,178,15,4,0xa2a8a0);
+            }
+            if(s==0) {
+                hospitalRect(g,x+156,174,215,40,0x25383f);
+                hospitalRect(g,x+149,164,229,14,0x81908d);
+                hospitalMonitor(g,x+180,111);
+                hospitalRect(g,x+280,158,34,12,0xb4b9a9);
+                hospitalRect(g,x+317,160,25,9,0x8d9b94);
+                hospitalBed(g,x+427,181);
+            } else if(s==1) {
+                hospitalBed(g,x+155,180); hospitalBed(g,x+420,180);
+                for(int k=0;k<6;k++) hospitalRect(g,x+350+k*8,110,7,94,k%2==0?0x557d79:0x3d625f);
+                hospitalRect(g,x+344,107,60,4,0x899c99);
+            } else if(s==2) {
+                for(int k=0;k<3;k++) {
+                    int u=x+155+k*155;
+                    hospitalRect(g,u,118,120,87,0x26373e);
+                    hospitalRect(g,u+7,125,106,70,0x61716e);
+                    for(int j=0;j<7;j++) hospitalRect(g,u+12,130+j*9,96,4,0x26363c);
+                    hospitalRect(g,u+48,106,18,15,0x718580);
+                }
+                hospitalRect(g,x+150,106,450,8,0x768b84);
+                g.setColor(new Color(80,150,101,90)); g.fillOval(x+360,219,140,25);
+            } else {
+                hospitalBed(g,x+310,180);
+                hospitalMonitor(g,x+180,137); hospitalMonitor(g,x+520,137);
+                hospitalRect(g,x+140,188,115,25,0x536669);
+                hospitalRect(g,x+500,188,105,25,0x536669);
+                hospitalRect(g,x+365,108,45,6,0x84948e);
+                hospitalRect(g,x+382,114,8,22,0x84948e);
+                g.setColor(new Color(0xb7c5b8)); g.fillOval(x+350,132,73,14);
+            }
+            for(int k=0;k<32;k++) {
+                int px=x+20+rng.nextInt(745), py=230+rng.nextInt(207);
+                hospitalRect(g,px,py,3+rng.nextInt(9),2+rng.nextInt(4),k%3==0?0x69373d:0x536065);
+            }
+            g.setColor(new Color(105,37,48,95)); g.fillOval(x+270,345,85,17); g.fillOval(x+590,408,55,12);
+            hospitalFloorProps(g,x+83,250,s%4);
+            hospitalFloorProps(g,x+275,365,(s+1)%4);
+            hospitalFloorProps(g,x+700,270,(s+2)%4);
+            hospitalFloorProps(g,x+760,395,(s+3)%4);
+            for(int k=0;k<9;k++) hospitalRect(g,x+680+k*9,217,9,5,k%2==0?0x9d874e:0x263039);
         }
-        // Ceiling lights, hospital room identifiers, doors, shattered windows.
-        String[] sections = {"EMERGENCY WING", "ISOLATION WARD", "VENTILATION UNIT", "RESEARCH WING"};
-        for (int s = 0; s < 4; s++) {
-            int start = s * 790;
-            g.setColor(new Color(14, 19, 31)); g.fillRect(start, 0, 790, 64);
-            g.setColor(new Color(80, 91, 103)); g.fillRect(start + 40, 20, 208, 8);
-            g.setColor(new Color(112, 217, 202, 70)); g.fillRect(start + 45, 28, 198, 14);
-            g.setColor(new Color(20, 31, 45));
-            g.fillRoundRect(start + 283, 84, 270, 28, 5, 5);
-            g.setColor(new Color(130, 188, 183));
-            g.drawRoundRect(start + 283, 84, 270, 28, 5, 5);
-            g.setColor(new Color(190, 223, 221));
-            g.setFont(new Font("Monospaced", Font.BOLD, 15));
-            g.drawString(sections[s], start + 295, 104);
-            g.setColor(new Color(16, 24, 39));
-            g.fillRect(start + 110, 92, 160, 119);
-            g.setColor(new Color(96, 131, 143));
-            g.drawRect(start + 110, 92, 160, 119);
-            g.drawLine(start + 190, 92, start + 190, 211);
-            g.setColor(new Color(20, 35, 48)); g.fillRect(start + 124, 106, 51, 84);
-            g.fillRect(start + 205, 106, 51, 84);
-            g.setColor(new Color(110, 194, 188, 52));
-            g.fillRect(start + 124, 106, 51, 84);
-            g.fillRect(start + 205, 106, 51, 84);
-            g.setColor(new Color(86, 105, 119));
-            g.fillRect(start + 565, 78, 120, 138);
-            g.setColor(new Color(21, 28, 43));
-            g.fillRect(start + 575, 87, 101, 129);
-            g.setColor(new Color(110, 147, 156));
-            g.drawRect(start + 575, 87, 101, 129);
-            g.setColor(new Color(231, 159, 119)); g.fillRect(start + 657, 146, 5, 9);
-            // Distinctive hospital wall cross.
-            g.setColor(s == 3 ? new Color(216, 154, 225) : new Color(102, 202, 187));
-            g.fillRect(start + 403, 110, 15, 64);
-            g.fillRect(start + 379, 134, 63, 15);
-            // Beds and mobile medical carts are scenery, not collision obstacles.
-            for (int b = 0; b < 2; b++) {
-                int bx = start + 70 + b * 320;
-                g.setColor(new Color(34, 46, 59)); g.fillRect(bx, 296, 162, 15);
-                g.setColor(new Color(118, 143, 152)); g.fillRect(bx + 4, 287, 155, 10);
-                g.setColor(new Color(67, 103, 113)); g.fillRect(bx + 10, 281, 38, 7);
-                g.setColor(new Color(27, 31, 45)); g.fillRect(bx + 10, 311, 6, 20);
-                g.fillRect(bx + 143, 311, 6, 20);
-            }
-            g.setColor(new Color(25, 36, 49)); g.fillRect(start + 580, 358, 85, 48);
-            g.setColor(new Color(99, 134, 142)); g.drawRect(start + 580, 358, 85, 48);
-            g.setColor(new Color(97, 183, 168)); g.fillRect(start + 612, 367, 12, 23);
-            g.fillRect(start + 606, 375, 24, 8);
-            g.setColor(new Color(16, 19, 30));
-            g.fillOval(start + 589, 402, 13, 13); g.fillOval(start + 643, 402, 13, 13);
-            // Hazard tape and contamination stains.
-            for (int k = 0; k < 13; k++) {
-                g.setColor(k % 2 == 0 ? new Color(188, 153, 72) : new Color(37, 36, 39));
-                g.fillRect(start + 450 + k * 13, 213, 13, 7);
-            }
-            g.setColor(new Color(54, 110, 96, 80));
-            g.fillOval(start + 310, 397, 145, 20);
-            g.fillOval(start + 230, 422, 82, 11);
-            g.setColor(new Color(153, 80, 98, 64));
-            g.fillOval(start + 681, 381, 66, 14);
-        }
-        g.setColor(new Color(9, 12, 25, 178)); g.fillRect(0, 0, WORLD, 17);
-        g.setColor(new Color(26, 25, 43)); g.fillRect(0, H - 17, WORLD, 17);
-        g.dispose();
-        return img;
+        g.dispose(); return img;
     }
     private void drawActors(Graphics2D g) {
         List<Enemy> sorted = new ArrayList<>(enemies);
