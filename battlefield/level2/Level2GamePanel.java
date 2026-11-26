@@ -1,6 +1,7 @@
 package battlefield.level2;
 
 import game.AudioManager;
+import game.HealthEffects;
 
 import battlefield.level1.SaveManager;
 import game.GameManager;
@@ -112,6 +113,7 @@ public final class Level2GamePanel extends JPanel {
     private final Runnable onWin;
     private final Runnable onMenu;
     private final javax.swing.Timer timer;
+    private final HealthEffects healthEffects = new HealthEffects();
     private final Random rng = new Random(27);
     private final SpriteLoader sprites = new SpriteLoader();
     private final List<Enemy> enemies = new ArrayList<>();
@@ -323,7 +325,14 @@ public final class Level2GamePanel extends JPanel {
         setCursor(Cursor.getDefaultCursor());
         repaint();
     }
-    public void disposeGame() { timer.stop(); keys.clear(); }
+    public void disposeGame() {
+        timer.stop();
+        keys.clear();
+
+        AudioManager.stopZombieSounds();
+        AudioManager.stopHeartbeat();
+        healthEffects.reset();
+    }
     @Override public void addNotify() {
         super.addNotify();
         SwingUtilities.invokeLater(this::requestFocusInWindow);
@@ -385,7 +394,18 @@ public final class Level2GamePanel extends JPanel {
         if (paused || lab || journal || encounter || dead || won) return;
         if (medkits <= 0) { message("No medkits left."); return; }
         if (hp >= 100) { message("Health is already full."); return; }
-        medkits--; hp = GameplayBridge.useMedkit(hp, scientist);
+
+        medkits--;
+
+        double previousHp = hp;
+        hp = GameplayBridge.useMedkit(hp, scientist);
+
+        if (hp > previousHp) {
+            AudioManager.playMedkitSound();
+            healthEffects.triggerHeal();
+            AudioManager.updateHeartbeat(hp, 100);
+        }
+
         message("Medkit used. Health restored.");
     }
     private void message(String value) { notice = value; noticeTicks = 240; }
@@ -412,8 +432,20 @@ public final class Level2GamePanel extends JPanel {
     }
 
     private void updateGame() {
-        // Same overlay priority as Level 1: paused means the game really stops.
-        if (paused) { repaint(); return; }
+
+    healthEffects.update(hp, 100);
+
+    if (paused || lab || journal || encounter || dead || won) {
+        AudioManager.stopZombieSounds();
+        AudioManager.stopHeartbeat();
+    } else {
+        AudioManager.updateHeartbeat(hp, 100);
+    }
+
+    // Same overlay priority as Level 1: paused means the game really stops.
+    if (paused) { repaint(); return; }
+
+
         if (lab) {
             if (labTab != 3 && --labTicks <= 0) {
                 lab = false; Arrays.fill(selected, false);
@@ -442,7 +474,15 @@ public final class Level2GamePanel extends JPanel {
                 try { saveProgress(); } catch (IOException e) { message("Checkpoint save failed: " + e.getMessage()); }
             }
         } else waveTimer = 0;
-        if (hp <= 0) { hp = 0; dead = true; keys.clear(); }
+        if (hp <= 0) {
+            hp = 0;
+            dead = true;
+            keys.clear();
+
+            AudioManager.stopHeartbeat();
+            AudioManager.stopZombieSounds();
+            healthEffects.reset();
+        }
         repaint();
     }
     private void updatePlayer() {
@@ -472,12 +512,16 @@ public final class Level2GamePanel extends JPanel {
             if (z.slowed > 0) z.slowed--;
             double dx = px - z.x, dy = py - z.y;
             double distance = Math.hypot(dx, dy);
+            if (distance < 900) {
+            AudioManager.playLevel2ZombieGrowl(z.type);
+}
             if (distance < 450 && !seen[z.type]) {
                 seen[z.type] = true;
                 GameplayBridge.scan(2, z.type, CHEMS[RECIPES[z.type][0]]);
                 encounterType = z.type;
                 encountered = z;
                 encounter = true;
+                AudioManager.stopZombieSounds();
                 keys.clear();
                 message("NEW RESEARCH: " + NAMES[z.type]);
                 return;
@@ -512,7 +556,12 @@ public final class Level2GamePanel extends JPanel {
                     p.enemy.slowed = 80;
                     message("Incorrect treatment! Review the Research Journal.");
                 } else {
-                    p.enemy.flash = 28; // red immediately on impact, including a final hit
+                p.enemy.flash = 28; // red immediately on impact, including a final hit
+
+                    if (p.enemy.hp > 0) {
+                        AudioManager.playZombieDamage();
+                    }
+
                     if (p.enemy.hp <= 0) stabilize(p.enemy);
                     else message("Treatment effective. " + NAMES[p.type] + " is weakening.");
                 }
@@ -596,6 +645,10 @@ public final class Level2GamePanel extends JPanel {
     }
     private void reset() {
         px = 132; py = 369; camera = 0; hp = 100;
+
+        healthEffects.reset();
+        AudioManager.stopHeartbeat();
+
         ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
         xp = 0; coins = 18; medkits = 2; equipped = 0; target = 0; batchQty = 1;
         hurtTicks = 0; throwCooldown = 0; labTicks = 0; labTab = 0;
@@ -933,6 +986,11 @@ public final class Level2GamePanel extends JPanel {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         g.drawImage(hospital, -(int) camera, 0, null);
         drawActors(g);
+
+        if (canPlay()) {
+            healthEffects.drawVignette(g, W, H);
+        }
+
         drawHUD(g);
         if (paused) drawPauseMenu(g);
         else if (encounter) drawEncounter(g);
@@ -1062,6 +1120,15 @@ public final class Level2GamePanel extends JPanel {
         for (Defeated d : defeated) drawDefeated(g, d);
         for (Enemy z : sorted) drawEnemy(g, z);
         drawPlayer(g);
+
+        if (canPlay()) {
+            healthEffects.drawHealEffect(
+                g,
+                (int) (px - camera),
+                (int) py - 35,
+                45
+            );
+        }
         for (Projectile p : projectiles) {
             int x = (int) (p.x - camera), y = (int) p.y;
             g.setColor(VIAL_COLORS[p.type]);

@@ -1,5 +1,9 @@
 package battlefield.level5;
 
+import game.AudioManager;
+import game.HealthEffects;
+
+import battlefield.level1.SaveManager;
 import battlefield.level1.SaveManager;
 import game.GameManager;
 import game.GameplayBridge;
@@ -112,6 +116,7 @@ public final class Level5GamePanel extends JPanel {
     private final Runnable onWin;
     private final Runnable onMenu;
     private final javax.swing.Timer timer;
+    private final HealthEffects healthEffects = new HealthEffects();
     private final Random rng = new Random(27);
     private final SpriteLoader sprites = new SpriteLoader();
     private final List<Enemy> enemies = new ArrayList<>();
@@ -373,6 +378,10 @@ public final class Level5GamePanel extends JPanel {
     public void disposeGame() {
         timer.stop();
         keys.clear();
+
+        AudioManager.stopHeartbeat();
+        healthEffects.reset();
+
         KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(sprintKeys);
     }
     @Override public void addNotify() {
@@ -432,10 +441,21 @@ public final class Level5GamePanel extends JPanel {
     }
 
     private void heal() {
-        if (paused || lab || journal || encounter || dead || won) return;
+        if (!canPlay()) return;
         if (medkits <= 0) { message("No medkits left."); return; }
         if (hp >= 100) { message("Health is already full."); return; }
-        medkits--; hp = GameplayBridge.useMedkit(hp, scientist);
+
+        medkits--;
+
+        double previousHp = hp;
+        hp = GameplayBridge.useMedkit(hp, scientist);
+
+        if (hp > previousHp) {
+            AudioManager.playMedkitSound();
+            healthEffects.triggerHeal();
+            AudioManager.updateHeartbeat(hp, 100);
+        }
+
         message("Medkit used. Health restored.");
     }
     private void message(String value) { notice = value; noticeTicks = 240; }
@@ -543,6 +563,15 @@ public final class Level5GamePanel extends JPanel {
         spawned++; spawnTimer = type == 3 ? 165 : 105;
     }
     private void updateGame() {
+
+        healthEffects.update(hp, 100);
+
+        if (!canPlay()) {
+            AudioManager.stopHeartbeat();
+        } else {
+            AudioManager.updateHeartbeat(hp, 100);
+        }
+
         if (paused) { repaint(); return; }
         if(transition>0){ if(--transition==0) enterNextRoom(); repaint(); return; }
         if(cinematic>0){ if(--cinematic==0){ roomInvestigated=true; bossAuraTicks=180; } repaint(); return; }
@@ -576,7 +605,14 @@ public final class Level5GamePanel extends JPanel {
                 try { saveProgress(); } catch (IOException e) { message("Checkpoint save failed: " + e.getMessage()); }
             }
         } else waveTimer = 0;
-        if (hp <= 0) { hp = 0; dead = true; keys.clear(); }
+        if (hp <= 0) {
+            hp = 0;
+            dead = true;
+            keys.clear();
+
+            AudioManager.stopHeartbeat();
+            healthEffects.reset();
+        }
         repaint();
     }
 
@@ -821,6 +857,10 @@ public final class Level5GamePanel extends JPanel {
     }
     private void reset() {
         px = 120; py = 240; camera = 0; hp = 100;
+
+        healthEffects.reset();
+        AudioManager.stopHeartbeat();
+
         ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
         transition=0;cinematic=0;sealReady=false;cameraY=0; fundedWave = 0; roomEntered = false; roomInvestigated = false; Arrays.fill(openedDoors, false);
         xp = 0; coins = 55; medkits = 2; equipped = 0; target = 0; batchQty = 1;
@@ -1254,6 +1294,11 @@ public final class Level5GamePanel extends JPanel {
         drawNewRoom(scene);
         Graphics2D actors=(Graphics2D)scene.create();actors.translate(0,-cameraY);drawActors(actors);actors.dispose();scene.dispose();
         drawBossEntranceEdges(g);
+
+        if (canPlay()) {
+            healthEffects.drawVignette(g, W, H);
+        }
+
         drawHUD(g);
         drawExplorationObjective(g);
         if (paused) drawPauseMenu(g);
@@ -1694,6 +1739,16 @@ public final class Level5GamePanel extends JPanel {
         for (Defeated d : defeated) drawDefeated(g, d);
         for (Enemy z : sorted) drawEnemy(g, z);
         drawPlayer(g);
+
+        if (canPlay()) {
+            healthEffects.drawHealEffect(
+                g,
+                (int) (px - camera),
+                (int) py - 35,
+                45
+            );
+        }
+
         for (Projectile p : projectiles) {
             int x = (int) (p.x - camera), y = (int) p.y;
             g.setColor(VIAL_COLORS[p.type]);

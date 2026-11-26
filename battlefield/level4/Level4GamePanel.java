@@ -1,5 +1,7 @@
 package battlefield.level4;
 
+import game.AudioManager;
+import game.HealthEffects;
 import battlefield.level1.SaveManager;
 import game.GameplayBridge;
 import game.GameManager;
@@ -119,6 +121,7 @@ public final class Level4GamePanel extends JPanel {
     private final Runnable onWin;
     private final Runnable onMenu;
     private final javax.swing.Timer timer;
+    private final HealthEffects healthEffects = new HealthEffects();
     private final Random rng = new Random(27);
     private final SpriteLoader sprites = new SpriteLoader();
     private final List<Enemy> enemies = new ArrayList<>();
@@ -361,6 +364,11 @@ public final class Level4GamePanel extends JPanel {
     public void disposeGame() {
         timer.stop();
         keys.clear();
+
+        AudioManager.stopZombieSounds();
+        AudioManager.stopHeartbeat();
+        healthEffects.reset();
+
         KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(sprintKeys);
     }
     @Override public void addNotify() {
@@ -424,7 +432,18 @@ public final class Level4GamePanel extends JPanel {
         if (paused || lab || journal || encounter || dead || won) return;
         if (medkits <= 0) { message("No medkits left."); return; }
         if (hp >= 100) { message("Health is already full."); return; }
-        medkits--; hp = GameplayBridge.useMedkit(hp, scientist);
+
+        medkits--;
+
+        double previousHp = hp;
+        hp = GameplayBridge.useMedkit(hp, scientist);
+
+        if (hp > previousHp) {
+            AudioManager.playMedkitSound();
+            healthEffects.triggerHeal();
+            AudioManager.updateHeartbeat(hp, 100);
+        }
+
         message("Medkit used. Health restored.");
     }
     private void message(String value) { notice = value; noticeTicks = 240; }
@@ -512,6 +531,16 @@ public final class Level4GamePanel extends JPanel {
         spawned++; spawnTimer = type == 3 ? 165 : 105;
     }
     private void updateGame() {
+
+        healthEffects.update(hp, 100);
+
+        if (paused || lab || journal || encounter || dead || won) {
+            AudioManager.stopZombieSounds();
+            AudioManager.stopHeartbeat();
+        } else {
+            AudioManager.updateHeartbeat(hp, 100);
+        }
+
         if (paused) { repaint(); return; }
         if (lab) {
             if (labTab != 3 && --labTicks <= 0) {
@@ -546,7 +575,15 @@ public final class Level4GamePanel extends JPanel {
                 try { saveProgress(); } catch (IOException e) { message("Checkpoint save failed: " + e.getMessage()); }
             }
         } else waveTimer = 0;
-        if (hp <= 0) { hp = 0; dead = true; keys.clear(); }
+        if (hp <= 0) {
+        hp = 0;
+        dead = true;
+        keys.clear();
+
+        AudioManager.stopHeartbeat();
+        AudioManager.stopZombieSounds();
+        healthEffects.reset();
+    }
         repaint();
     }
     private void updatePlayer() {
@@ -592,10 +629,16 @@ public final class Level4GamePanel extends JPanel {
             if (z.attackTicks > 0) z.attackTicks--;
             double dx = px - z.x, dy = py - z.y;
             double distance = Math.hypot(dx, dy);
+
+            if (distance < 900) {
+                AudioManager.playLevel4ZombieGrowl(z.type);
+            }
+
             if (distance < 450 && !seen[z.type]) {
                 seen[z.type] = true;
                 GameplayBridge.scan(4, z.type, CHEMS[RECIPES[z.type][0]]);
                 encounterType = z.type; encountered = z; encounter = true;
+                AudioManager.stopZombieSounds();
                 if (z.type == 3) bossAuraTicks = 36;
                 keys.clear();
                 message("NEW RESEARCH: " + NAMES[z.type]);
@@ -663,8 +706,13 @@ public final class Level4GamePanel extends JPanel {
                 if (p.enemy.hp == previousHealth) {
                     p.enemy.slowed = 80;
                     message("Incorrect treatment! Review the Research Journal.");
-                } else {
+               } else {
                     p.enemy.flash = 28;
+
+                    if (p.enemy.hp > 0) {
+                        AudioManager.playZombieDamage();
+                    }
+
                     if (p.enemy.hp <= 0) stabilize(p.enemy);
                     else message("Treatment effective. " + NAMES[p.enemy.type] + " is weakening.");
                 }
@@ -750,6 +798,10 @@ public final class Level4GamePanel extends JPanel {
     }
     private void reset() {
         px = 132; py = 392; camera = 0; hp = 100;
+
+        healthEffects.reset();
+        AudioManager.stopHeartbeat();
+
         ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
         xp = 0; coins = 55; medkits = 2; equipped = 0; target = 0; batchQty = 1;
         lastEmergencyWave = 0;
@@ -1120,6 +1172,11 @@ public final class Level4GamePanel extends JPanel {
         drawFacilityEffects(g);
         drawActors(g);
         drawBossEntranceEdges(g);
+
+        if (canPlay()) {
+            healthEffects.drawVignette(g, W, H);
+        }
+
         drawHUD(g);
         if (paused) drawPauseMenu(g);
         else if (encounter) drawEncounter(g);
@@ -1432,6 +1489,16 @@ public final class Level4GamePanel extends JPanel {
         for (Defeated d : defeated) drawDefeated(g, d);
         for (Enemy z : sorted) drawEnemy(g, z);
         drawPlayer(g);
+
+        if (canPlay()) {
+            healthEffects.drawHealEffect(
+                g,
+                (int) (px - camera),
+                (int) py - 35,
+                45
+            );
+        }
+
         for (Projectile p : projectiles) {
             int x = (int) (p.x - camera), y = (int) p.y;
             g.setColor(VIAL_COLORS[p.type]);
