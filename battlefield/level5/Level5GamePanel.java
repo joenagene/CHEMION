@@ -140,7 +140,9 @@ public final class Level5GamePanel extends JPanel {
     private final boolean[] selected = new boolean[CHEMS.length];
     private double cameraY;
     private int transition, cinematic;
-    private boolean sealReady;
+    private boolean sealReady, sealIntroSeen;
+    private int sealIntroTicks;
+    private boolean sealIntroActive;
     private int room() { return roomEntered ? wave : wave-1; }
     private int base() { return room()*1440; }
     private int roomWidth() { return room()==4 ? 1440 : room()==2 ? 1840 : 960; }
@@ -187,7 +189,7 @@ public final class Level5GamePanel extends JPanel {
         String face = "left";
         Enemy(int type, double x, double y) {
             this.type = type; this.x = x; this.y = y;
-            this.hp = type == 3 ? 10 : type == 0 ? 6 : type == 1 ? 8 : 9;
+            this.hp = type == 3 ? 10 : type == 0 ? 4 : type == 1 ? 5 : 6;
         }
     }
 
@@ -347,7 +349,8 @@ public final class Level5GamePanel extends JPanel {
         bind(KeyEvent.VK_ESCAPE, "escape", this::escape);
         bind(KeyEvent.VK_R, "restart", () -> { if (dead) reset(); });
         bind(KeyEvent.VK_ENTER, "enter", () -> {
-            if (encounter) encounter = false;
+            if (sealIntroActive) finishSealIntro();
+            else if (encounter) encounter = false;
             else if (won) advanceAfterWin();
         });
         for (int i = 0; i < 4; i++) {
@@ -357,6 +360,7 @@ public final class Level5GamePanel extends JPanel {
         }
     }
     private void escape() {
+        if (sealIntroActive) return;
         if (encounter) encounter = false;
         else if (lab) lab = false;
         else if (journal) journal = false;
@@ -364,7 +368,7 @@ public final class Level5GamePanel extends JPanel {
     }
     private void togglePause() { openPauseMenu(); }
     public void openPauseMenu() {
-        if (dead || won) return;
+        if (dead || won || sealIntroActive) return;
         paused = !paused;
         keys.clear(); hoverControl = 0;
         setCursor(Cursor.getDefaultCursor());
@@ -395,7 +399,7 @@ public final class Level5GamePanel extends JPanel {
         }
     }
     private void toggleLab() {
-        if (transition>0 || cinematic>0 || paused || dead || won || encounter) return;
+        if (sealIntroActive || transition>0 || cinematic>0 || paused || dead || won || encounter) return;
         journal = false;
         if (lab) { lab = false; keys.clear(); return; }
         boolean any = false;
@@ -408,11 +412,11 @@ public final class Level5GamePanel extends JPanel {
         keys.clear();
     }
     private void toggleJournal() {
-        if (transition>0 || cinematic>0 || paused || dead || won || encounter) return;
+        if (sealIntroActive || transition>0 || cinematic>0 || paused || dead || won || encounter) return;
         lab = false; journal = !journal; keys.clear();
     }
     private boolean canPlay() {
-        return transition==0 && cinematic==0 && !paused && !lab && !journal && !encounter && !dead && !won;
+        return !sealIntroActive && transition==0 && cinematic==0 && !paused && !lab && !journal && !encounter && !dead && !won;
     }
 
     private void equipPotion(int type) {
@@ -543,6 +547,7 @@ public final class Level5GamePanel extends JPanel {
         spawned++; spawnTimer = type == 3 ? 165 : 105;
     }
     private void updateGame() {
+        if (sealIntroActive) { sealIntroTicks++; repaint(); return; }
         if (paused) { repaint(); return; }
         if(transition>0){ if(--transition==0) enterNextRoom(); repaint(); return; }
         if(cinematic>0){ if(--cinematic==0){ roomInvestigated=true; bossAuraTicks=180; } repaint(); return; }
@@ -570,7 +575,7 @@ public final class Level5GamePanel extends JPanel {
         updateProjectiles();
         if (roomInvestigated && !encounter && spawned >= quota() && enemies.isEmpty()) {
             if (++waveTimer >= 80 && wave < 4) {
-                wave++; coins += 40 + wave * 10; for (int c : RECIPES[wave-1]) stock[c] += 3; if (wave == 4) for (int c : RECIPES[2]) stock[c] += 5; spawned = 0; spawnTimer = 75; waveTimer = 0;
+                wave++; coins += wave == 2 ? 85 : wave == 3 ? 145 : 180; for (int c : RECIPES[wave-1]) stock[c] += 3; if (wave == 4) for (int c : RECIPES[2]) stock[c] += 5; spawned = 0; spawnTimer = 75; waveTimer = 0;
                 roomEntered = false; roomInvestigated = false;
                 message("Containment released. Find the next sealed door and press E.");
                 try { saveProgress(); } catch (IOException e) { message("Checkpoint save failed: " + e.getMessage()); }
@@ -585,8 +590,9 @@ public final class Level5GamePanel extends JPanel {
         if(!roomEntered){
             if(Math.hypot(px-doorX(),py-doorY())>110){message("Follow the gold marker to the door.");return;}
             if(wave==4&&!sealReady){
+                if (!sealIntroSeen) { sealIntroActive=true; sealIntroTicks=0; keys.clear(); return; }
                 lab=true;labTab=0;labTicks=3600;Arrays.fill(selected,false);keys.clear();
-                labNotice="SEAL: mix Water + Sodium Bicarbonate + Zeolite. Press MIX.";return;
+                labNotice="SEAL: purified solvent + mild bicarbonate base + ion-exchange mineral. Press MIX.";return;
             }
             transition=65;keys.clear();
         }else if(roomInvestigated && room()>=2 && Math.hypot(px-terminalX(),py-terminalY())<110){keys.clear();journalTab=0;journal=true;}else if(!roomInvestigated && Math.hypot(px-terminalX(),py-terminalY())<110){
@@ -612,7 +618,7 @@ public final class Level5GamePanel extends JPanel {
         if (dx != 0 || dy != 0) {
             double oldX = px, oldY = py;
             double length = Math.hypot(dx, dy);
-            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 3.05 : 2.15;
+            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 3.80 : 2.75;
             double[] next = moveAroundEquipment(px, py, dx / length * speed, dy / length * speed, ACTOR_RADIUS);
             px = next[0]; py = next[1];
             GameplayBridge.recordMovement(oldX, oldY, px, py);
@@ -752,7 +758,7 @@ public final class Level5GamePanel extends JPanel {
         stabilized[z.type]++;
         Reward earned = GameplayBridge.rewards(5, z.type);
         int[] progress = GameplayBridge.award(xp, coins, earned);
-        xp = progress[0]; coins = progress[1] + 12; for (int c : RECIPES[z.type]) stock[c] += 2;
+        xp = progress[0]; coins = progress[1] + (wave == 1 ? 18 : wave == 2 ? 28 : wave == 3 ? 40 : 12); for (int c : RECIPES[z.type]) stock[c] += 2;
         int reward = rng.nextInt(CHEMS.length - 2);
         stock[reward]++;
         if (rng.nextInt(6) == 0) medkits++;
@@ -822,7 +828,7 @@ public final class Level5GamePanel extends JPanel {
     private void reset() {
         px = 120; py = 240; camera = 0; hp = 100;
         ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
-        transition=0;cinematic=0;sealReady=false;cameraY=0; fundedWave = 0; roomEntered = false; roomInvestigated = false; Arrays.fill(openedDoors, false);
+        transition=0;cinematic=0;sealReady=false;sealIntroSeen=false;sealIntroActive=false;sealIntroTicks=0;cameraY=0; fundedWave = 0; roomEntered = false; roomInvestigated = false; Arrays.fill(openedDoors, false);
         xp = 0; coins = 55; medkits = 2; equipped = 0; target = 0; batchQty = 1;
         hurtTicks = 0; throwCooldown = 0; labTicks = 0; labTab = 0;
         journalTab = 2; journalChoice = 0; encounterType = -1;
@@ -849,6 +855,7 @@ public final class Level5GamePanel extends JPanel {
         p.setProperty("level5.wave", Integer.toString(wave));
         p.setProperty("level5.mapVersion", "2");
         p.setProperty("level5.sealReady", Boolean.toString(sealReady));
+        p.setProperty("level5.sealIntroSeen", Boolean.toString(sealIntroSeen));
         p.setProperty("level5.roomEntered", Boolean.toString(roomEntered));
         p.setProperty("level5.roomInvestigated", Boolean.toString(roomInvestigated));
         p.setProperty("level5.openedDoors", join(openedDoors));
@@ -918,7 +925,7 @@ public final class Level5GamePanel extends JPanel {
                 int type = Integer.parseInt(a[0]);
                 if (type < 0 || type > 3) throw new IllegalArgumentException("Bad enemy type");
                 Enemy z = new Enemy(type, Double.parseDouble(a[1]), Double.parseDouble(a[2]));
-                z.hp = Integer.parseInt(a[3]); z.cooldown = Integer.parseInt(a[4]);
+                z.hp = Math.min(z.hp, Integer.parseInt(a[3])); z.cooldown = Integer.parseInt(a[4]);
                 z.flash = Integer.parseInt(a[5]); z.slowed = Integer.parseInt(a[6]);
                 z.face = a[7];
                 if (a.length >= 9) {
@@ -961,6 +968,8 @@ public final class Level5GamePanel extends JPanel {
             }
             wave=newWave;roomEntered=Boolean.parseBoolean(p.getProperty("level5.roomEntered","false"));
             sealReady=Boolean.parseBoolean(p.getProperty("level5.sealReady","false"));
+            sealIntroSeen=Boolean.parseBoolean(p.getProperty("level5.sealIntroSeen","false"));
+            sealIntroActive=false; sealIntroTicks=0;
             if(!"2".equals(p.getProperty("level5.mapVersion"))) return false;
             double[] safePlayer = room()==0 ? findOpenFloor(120, 240, ACTOR_RADIUS) : findOpenFloor(newX, newY, ACTOR_RADIUS);
             px = safePlayer[0]; py = safePlayer[1]; hp = newHp;
@@ -1044,7 +1053,7 @@ public final class Level5GamePanel extends JPanel {
     private void mix() {
         if(wave==4&&!roomEntered&&!sealReady){
             boolean correct=true;for(int i=0;i<selected.length;i++)if(selected[i]!=(i==0||i==2||i==3))correct=false;
-            if(!correct){labNotice="Seal clue: carrier + buffer + adsorbent (Water, Sodium Bicarbonate, Zeolite).";return;}
+            if(!correct){labNotice="Seal clue: purified solvent + mild bicarbonate base + ion-exchange mineral.";return;}
             for(int i:new int[]{0,2,3})if(stock[i]<1){labNotice="Buy missing seal ingredients in Shop.";return;}
             for(int i:new int[]{0,2,3})stock[i]--;sealReady=true;lab=false;Arrays.fill(selected,false);message("Seal dissolved. Press E at the door.");return;
         }
@@ -1124,7 +1133,10 @@ public final class Level5GamePanel extends JPanel {
     }
 
     private void purchase(int index, boolean bulk) {
-        if (coins < 12 && fundedWave < wave) { fundedWave = wave; coins += 30; }
+        if (coins < 20 && fundedWave < wave) {
+            fundedWave = wave;
+            coins += wave >= 3 ? 100 : 45;
+        }
         int max = coins / PRICES[index];
         if (max < 1) { labNotice = "Not enough coins."; return; }
         int qty = bulk ? askQuantity("Buy " + CHEMS[index], max, 1, PRICES[index]) : 1;
@@ -1140,9 +1152,10 @@ public final class Level5GamePanel extends JPanel {
     }
 
     private boolean hudControlsAvailable() {
-        return transition==0 && cinematic==0 && !paused && !lab && !journal && !encounter && !dead && !won;
+        return !sealIntroActive && transition==0 && cinematic==0 && !paused && !lab && !journal && !encounter && !dead && !won;
     }
     private void handleClick(int x, int y) {
+        if (sealIntroActive) { if (new Rectangle(370, 435, 220, 42).contains(x,y)) finishSealIntro(); return; }
         if (won) {
             if (new Rectangle(362, 325, 236, 38).contains(x, y)) advanceAfterWin();
             return;
@@ -1265,6 +1278,7 @@ public final class Level5GamePanel extends JPanel {
             drawEnd(g, "GENESIS CONTAINED", "Patient Zero has been stabilized. The truth survives.", true);
         if(transition>0) drawDoorTransition(g);
         if(cinematic>0) drawCinematic(g);
+        if(sealIntroActive) drawSealIntro(g);
         g.dispose();
     }
 
@@ -1563,6 +1577,7 @@ public final class Level5GamePanel extends JPanel {
             a.setColor(new Color(106,73,100));a.fillRect(left,top,width/2-2,height);a.fillRect(left+width/2+2,top,width/2-2,height);
             a.setColor(new Color(52,33,62));a.drawRect(left+5,top+9,width/2-12,height-18);a.drawRect(left+width/2+7,top+9,width/2-12,height-18);
             a.setColor(RED);a.fillRect(left+10,top+5,width-20,5);
+            if(wave==4 && !roomEntered && !sealReady) drawChemicalSeal(a,left,top,width,height);
         }
         if(roomEntered && (!roomInvestigated || room()>=2)){int x=(int)terminalX(),y=(int)terminalY();researchDesk(a,x-65,y-55,130,45,0);a.setColor(TEAL);a.drawRect(x-55,y-66,49,30);if(room()>=2){a.setColor(GOLD);a.drawString("CLASSIFIED FILE [E]",x-70,y-75);}}
         a.dispose();
@@ -1659,6 +1674,59 @@ public final class Level5GamePanel extends JPanel {
         a.setStroke(new BasicStroke(1));a.setColor(new Color(100,235,210,65));int scan=y+43+ticks%74;a.drawLine(x+10,scan,x+w-10,scan);
         a.setColor(TEAL);a.drawString("LIVE / SPECIMEN 02",x+20,y+128);a.dispose();
     }
+    // Chemical seal cinematic
+    private void finishSealIntro() {
+        if (sealIntroTicks < 60) return;
+        sealIntroActive=false; sealIntroSeen=true; keys.clear();
+        message("Chemical seal identified. Press E at the door to mix the dissolver.");
+        try { saveProgress(); } catch (IOException ignored) {}
+    }
+
+    private void drawSealIntro(Graphics2D g) {
+        int alpha=Math.min(255, sealIntroTicks*5);
+        g.setColor(new Color(0,0,0,alpha)); g.fillRect(0,0,W,H);
+        if(sealIntroTicks<52) return;
+        centered(g,"GENESIS / THE SEALED VAULT",0,65,W,40,22,PURPLE,true);
+        String[] lines={"Something behind this door is still alive.",
+            "The Genesis seal was never designed to keep people out...",
+            "It was designed to keep something inside."};
+        int chars=(sealIntroTicks-52)/2;
+        for(int i=0;i<lines.length;i++) {
+            int n=Math.max(0,Math.min(chars,lines[i].length()));
+            centered(g,lines[i].substring(0,n),0,135+i*32,W,30,17,WHITE,false);
+            chars-=lines[i].length();
+        }
+        if(sealIntroTicks>=60) {
+            centered(g,"CHEMICAL CLUE",0,260,W,30,19,TEAL,true);
+            centered(g,"A purified solvent, a mild bicarbonate base,",0,300,W,28,16,WHITE,false);
+            centered(g,"and an ion-exchange mineral can dissolve the seal.",0,330,W,28,16,WHITE,false);
+            g.setColor(new Color(45,26,65));g.fillRoundRect(370,435,220,42,8,8);
+            g.setColor(PURPLE);g.drawRoundRect(370,435,220,42,8,8);
+            centered(g,"CONTINUE [ENTER]",370,435,220,42,14,WHITE,true);
+        }
+    }
+
+    private void drawChemicalSeal(Graphics2D g,int x,int y,int w,int h) {
+        Graphics2D a=(Graphics2D)g.create();
+        int pulse=(int)(45+25*Math.sin(ticks*.07));
+        a.setColor(new Color(75,255,120,pulse));a.fillRoundRect(x-12,y-12,w+24,h+24,18,18);
+        a.setColor(new Color(38,160,76,115));a.fillRect(x+4,y+8,w-8,h-12);
+        a.setStroke(new BasicStroke(3));
+        for(int i=0;i<5;i++) {
+            int xx=x+12+i*(w-24)/4;
+            a.setColor(new Color(80,255,130,150+pulse));
+            a.drawPolyline(new int[]{xx,xx+7,xx-5,xx+5},new int[]{y+10,y+h/3,y+2*h/3,y+h-8},4);
+        }
+        for(int i=0;i<20;i++) {
+            int xx=x+(i*37)%w, yy=y+h-(ticks/2+i*17)%(h+35);
+            a.setColor(new Color(110,255,150,55+(i%4)*30));a.fillOval(xx,yy,3+i%4,3+i%4);
+            if(i<8){a.setColor(new Color(70,220,100,30));a.fillOval(xx-12,yy-8,28,18);}
+        }
+        a.setColor(new Color(130,255,160));a.drawRect(x+3,y+3,w-6,h-6);
+        a.setFont(new Font("Monospaced",Font.BOLD,11));a.drawString("CHEMICAL SEAL",x+8,y-16);
+        a.dispose();
+    }
+
     private void drawDoorTransition(Graphics2D g){int half=(int)(W/2.0*transition/65);g.setColor(new Color(18,12,26));g.fillRect(0,0,half,H);g.fillRect(W-half,0,half,H);g.setColor(RED);g.drawLine(half,0,half,H);g.drawLine(W-half,0,W-half,H);}
     private void drawCinematic(Graphics2D g){
         if(cinematic>100){g.setColor(new Color(10,5,17));g.fillRect(0,0,W,H);int pan=(300-cinematic)*4;for(int i=0;i<12;i++){int x=i*180-pan;g.setColor(new Color(72,23,61));g.fillRoundRect(x,80,125,330,25,25);g.setColor(new Color(154,35,79));g.drawRoundRect(x,80,125,330,25,25);g.fillOval(x+40,155,45,145);}centered(g,"GENESIS / RESTRICTED SPECIMENS",0,440,W,40,18,RED,true);}
