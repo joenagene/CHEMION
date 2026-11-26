@@ -1,9 +1,10 @@
 package battlefield.level3;
 
-import battlefield.level1.SaveManager;
 import game.AudioManager;
-import game.GameManager;
+
+import battlefield.level1.SaveManager;
 import game.GameplayBridge;
+import game.GameManager;
 import game.Reward;
 import java.awt.*;
 import java.awt.event.*;
@@ -58,7 +59,7 @@ public final class Level3GamePanel extends JPanel {
         "Sodium Bicarbonate", "Distilled Water", "Activated Carbon", "Zeolite",
         "Sodium Thiosulfate", "Silica Gel", "Calcium Carbonate", "Potassium Iodide"
     };
-    private static final int[] PRICES = {4, 2, 6, 7, 6, 5, 4, 7};
+    private static final int[] PRICES = {4, 2, 2, 5, 3, 4, 4, 5};
     private static final int[] START_STOCK = {5, 12, 4, 3, 3, 3, 2, 2};
     private static final int[][] RECIPES = {
         {0, 1},          // Brute: buffer + carrier (2)
@@ -148,7 +149,7 @@ public final class Level3GamePanel extends JPanel {
 
     private double px = 132, py = 369, camera, hp = 100;
     private int ticks, wave = 1, spawned, spawnTimer = 90, waveTimer;
-    private int xp, coins = 22, medkits = 2, equipped, target, batchQty = 1;
+    private int xp, coins = 85, medkits = 2, equipped, target, batchQty = 1;
     private int hurtTicks, throwCooldown, labTicks, labTab, journalTab = 2, journalChoice;
     private int noticeTicks, encounterType = -1, hoverControl;
     private String facing = "right";
@@ -679,7 +680,7 @@ public final class Level3GamePanel extends JPanel {
     private void reset() {
         px = 132; py = 369; camera = 0; hp = 100;
         ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
-        xp = 0; coins = 22; medkits = 2; equipped = 0; target = 0; batchQty = 1;
+        xp = 0; coins = 85; medkits = 2; equipped = 0; target = 0; batchQty = 1;
         hurtTicks = 0; throwCooldown = 0; labTicks = 0; labTab = 0;
         journalTab = 2; journalChoice = 0; encounterType = -1;
         facing = "right"; encountered = null; paused = false; lab = false; journal = false;
@@ -811,7 +812,7 @@ public final class Level3GamePanel extends JPanel {
             spawnTimer = parseInt(p, "level3.spawnTimer", 90);
             waveTimer = parseInt(p, "level3.waveTimer", 0);
             xp = parseInt(p, "level3.xp", 0);
-            coins = parseInt(p, "level3.coins", 22);
+            coins = parseInt(p, "level3.coins", 85);
             medkits = parseInt(p, "level3.medkits", 2);
             equipped = clamp(parseInt(p, "level3.equipped", 0), 0, 3);
             target = clamp(parseInt(p, "level3.target", 0), 0, 3);
@@ -911,12 +912,63 @@ public final class Level3GamePanel extends JPanel {
         Arrays.fill(selected, false);
         message("Crafted " + batchQty + " " + NAMES[recipe] + " potion(s)! Press SPACE or click to throw.");
     }
-    private void purchase(int index) {
-        if (coins < PRICES[index]) { labNotice = "Not enough coins."; return; }
-        int remaining = GameplayBridge.buy(coins, CHEMS, stock, index, PRICES[index]);
-        if (remaining < 0) { labNotice = "Not enough coins."; return; }
+    private int askQuantity(String title, int max, int initial, int price) {
+        if (max < 1) return 0;
+        JTextField field = new JTextField(String.valueOf(Math.min(max, Math.max(1, initial))), 10);
+        JLabel total = new JLabel();
+        Runnable refresh = () -> {
+            try { int n = Integer.parseInt(field.getText().trim());
+                total.setText(n >= 1 && n <= max ? (price > 0 ? "Total: " + ((long)n * price) + " coins" : "Potions: " + n) : "Enter 1 to " + max);
+            } catch (NumberFormatException ex) { total.setText("Enter a whole number."); }
+        };
+        field.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { refresh.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { refresh.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { refresh.run(); }
+        });
+        refresh.run();
+        Color bg = new Color(32, 24, 48), accent = new Color(101, 61, 153);
+        Font font = new Font("Monospaced", Font.BOLD, 14);
+        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), title, Dialog.ModalityType.APPLICATION_MODAL);
+        dialog.setUndecorated(true);
+        dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        JPanel content = new JPanel(new GridLayout(0, 1, 0, 12));
+        content.setBackground(bg);
+        content.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(22, 24, 22, 24)));
+        JLabel heading = new JLabel(title.toUpperCase(Locale.ROOT));
+        JLabel range = new JLabel("Quantity (1 - " + max + ")");
+        for (JLabel l : new JLabel[]{heading, range, total}) { l.setFont(font); l.setForeground(PURPLE); }
+        total.setForeground(GOLD);
+        field.setFont(font); field.setBackground(new Color(49, 36, 70)); field.setForeground(WHITE); field.setCaretColor(WHITE);
+        field.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(8, 8, 8, 8)));
+        JButton confirm = new JButton("CONFIRM"), cancel = new JButton("CANCEL");
+        for (JButton button : new JButton[]{confirm, cancel}) { button.setFont(font); button.setBackground(accent); button.setForeground(WHITE); button.setFocusPainted(false); button.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(9, 12, 9, 12))); }
+        JPanel actions = new JPanel(new GridLayout(1, 2, 10, 0)); actions.setOpaque(false); actions.add(confirm); actions.add(cancel);
+        content.add(heading); content.add(range); content.add(field); content.add(total); content.add(actions);
+        int[] result = {0};
+        confirm.addActionListener(e -> { try { int n = Integer.parseInt(field.getText().trim()); if (n >= 1 && n <= max) { result[0] = n; dialog.dispose(); return; } } catch (NumberFormatException ex) { } total.setText("Enter a whole number from 1 to " + max); });
+        cancel.addActionListener(e -> dialog.dispose());
+        dialog.setContentPane(content); dialog.getRootPane().setDefaultButton(confirm);
+        dialog.getRootPane().registerKeyboardAction(e -> dialog.dispose(), KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+        dialog.pack(); dialog.setSize(Math.max(360, dialog.getWidth()), dialog.getHeight()); dialog.setLocationRelativeTo(this);
+        boolean running = timer.isRunning(); timer.stop(); keys.clear();
+        try { SwingUtilities.invokeLater(() -> { field.requestFocusInWindow(); field.selectAll(); }); dialog.setVisible(true); return result[0]; }
+        finally { dialog.dispose(); if (running) timer.start(); requestFocusInWindow(); }
+    }
+
+    private void purchase(int index, boolean bulk) {
+        int max = coins / PRICES[index];
+        if (max < 1) { labNotice = "Not enough coins."; return; }
+        int qty = bulk ? askQuantity("Buy " + CHEMS[index], max, 1, PRICES[index]) : 1;
+        if (qty == 0) return;
+        int[] updated = stock.clone(); int remaining = coins;
+        for (int i = 0; i < qty; i++) {
+            remaining = GameplayBridge.buy(remaining, CHEMS, updated, index, PRICES[index]);
+            if (remaining < 0) { labNotice = "Purchase failed."; return; }
+        }
+        System.arraycopy(updated, 0, stock, 0, stock.length);
         coins = remaining;
-        labNotice = "Purchased " + CHEMS[index] + ".";
+        labNotice = "Purchased " + qty + " x " + CHEMS[index] + " for " + (qty * PRICES[index]) + " coins.";
     }
 
     private boolean hudControlsAvailable() {
@@ -1012,9 +1064,8 @@ public final class Level3GamePanel extends JPanel {
         } else if (labTab == 3) {
             for (int i = 0; i < CHEMS.length; i++) {
                 int bx = 210 + i % 2 * 350, by = 151 + i / 2 * 81;
-                if (new Rectangle(bx + 239, by + 18, 82, 34).contains(x, y)) {
-                    purchase(i); return;
-                }
+                if (new Rectangle(bx + 200, by + 18, 52, 34).contains(x, y)) { purchase(i, false); return; }
+                if (new Rectangle(bx + 256, by + 18, 69, 34).contains(x, y)) { purchase(i, true); return; }
             }
         }
     }
@@ -1725,7 +1776,7 @@ public final class Level3GamePanel extends JPanel {
     private void drawLabShop(Graphics2D g) {
         label(g, "INGREDIENT SHOP", 210, 122, 14, PURPLE, true);
         label(g, "COINS: " + coins, 737, 122, 14, GOLD, true);
-        label(g, "Buy missing chemicals, then return to Mix Potion.",
+        label(g, "BUY 1 for instant purchase, or QUANTITY for bulk.",
                 210, 139, 10, MUTED, false);
 
         for (int i = 0; i < CHEMS.length; i++) {
@@ -1735,9 +1786,9 @@ public final class Level3GamePanel extends JPanel {
             label(g, CHEMS[i], x + 13, y + 23, 11, WHITE, true);
             label(g, "OWNED: " + stock[i] + "   PRICE: " + SHOP_PRICES[i] + " coins",
                     x + 13, y + 47, 10, MUTED, false);
-            button(g, x + 239, y + 18, 82, 34, "BUY +1",
-                    coins >= SHOP_PRICES[i] ?
-                    new Color(113, 71, 167) : new Color(57, 46, 72));
+            Color buyColor = coins >= SHOP_PRICES[i] ? new Color(113, 71, 167) : new Color(57, 46, 72);
+            button(g, x + 200, y + 18, 52, 34, "BUY 1", buyColor);
+            button(g, x + 256, y + 18, 69, 34, "QUANTITY", buyColor);
         }
         label(g, fit(g, labNotice, 660, 10), 210, 489, 10, GOLD, false);
     }
