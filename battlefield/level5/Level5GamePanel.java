@@ -146,11 +146,11 @@ public final class Level5GamePanel extends JPanel {
     private int room() { return roomEntered ? wave : wave-1; }
     private int base() { return room()*1440; }
     private int roomWidth() { return room()==4 ? 1440 : room()==2 ? 1840 : 960; }
-    private int roomHeight() { return room()==1 || room()==3 ? 1360 : room()==4 ? 850 : 540; }
+    private int roomHeight() { return room()==1 || room()==3 ? 1360 : room()==4 ? 1120 : 540; }
     private double doorX() { return base() + (room()==0 ? 925 : room()==1 ? 925 : room()==2 ? roomWidth()-35 : 480); }
-    private double doorY() { return room()==1 ? 160 : room()==3 ? 1210 : 300; }
-    private double terminalX() { return base() + (room()==2 ? 610 : room()==4 ? 720 : 480); }
-    private double terminalY() { return room()==1 ? 340 : room()==3 ? 920 : room()==4 ? 380 : 300; }
+    private double doorY() { return room()==1 ? 270 : room()==3 ? 1210 : 300; }
+    private double terminalX() { return base() + (room()==2 ? 610 : room()==4 ? 1190 : 480); }
+    private double terminalY() { return room()==1 ? 340 : room()==3 ? 920 : room()==4 ? 560 : 300; }
     private void updateCamera() { camera=clamp(px-W*.5,base(),base()+roomWidth()-W); cameraY=clamp(py-H*.55,0,roomHeight()-H); }
 
     private double px = 120, py = 240, camera, hp = 100;
@@ -473,7 +473,7 @@ public final class Level5GamePanel extends JPanel {
             r.add(new Rectangle(base()+650,1030,265,130));
             return r;
         }
-        if(room()==4){for(int x:new int[]{80,260,1060,1240}) for(int y:new int[]{180,700}) r.add(new Rectangle(base()+x,y,104,40));return r;}
+        if(room()==4){for(int x:new int[]{80,250,1090,1260}) for(int y:new int[]{290,950}) r.add(new Rectangle(base()+x,y,104,40)); for(int x:new int[]{85,1170}) r.add(new Rectangle(base()+x,740,180,42)); return r;}
         for(int y=135;y<rh-70;y+=330){
             for(int x=80;x<rw-160;x+=180){
                 if(Math.abs(base()+x+52-doorX())<100 && Math.abs(y-doorY())<110)continue;
@@ -482,6 +482,7 @@ public final class Level5GamePanel extends JPanel {
             }
             int dy=y+175;
             if(dy<rh-100)for(int x:new int[]{85,335,rw-225}){
+                if(room()==1 && y==135 && x==rw-225)continue;
                 if(Math.abs(base()+x+70-doorX())<125&&Math.abs(dy-doorY())<100)continue;
                 if(x!=335 && Math.abs(base()+x+70-terminalX())<80&&Math.abs(dy-terminalY())<65)continue;
                 r.add(new Rectangle(base()+x,dy,150,42));
@@ -496,7 +497,7 @@ public final class Level5GamePanel extends JPanel {
             if(solid.intersects(x-radius,y-radius,radius*2,radius*2))return false;
         }
         
-        for(int sy=100;room()!=2 && room()!=3 && sy<roomHeight()-100;sy+=330){
+        for(int sy=100;room()!=2 && room()!=3 && room()!=4 && sy<roomHeight()-100;sy+=330){
             int my=sy+(sy==100?65:0);
             Rectangle monitor=new Rectangle(base()+roomWidth()-235,my-72,200,88);
             if(monitor.intersects(x-radius,y-radius,radius*2,radius*2))return false;
@@ -603,7 +604,7 @@ public final class Level5GamePanel extends JPanel {
     private void enterNextRoom(){
         openedDoors[wave-1]=true;roomEntered=true;
         px=base()+(wave==2?120:roomWidth()/2);py=wave==1?roomHeight()-130:wave==3?150:390;
-        if(wave==4){cinematic=300;px=base()+480;py=620;roomInvestigated=true;spawnEnemy();Enemy boss=enemies.get(enemies.size()-1);boss.x=base()+720;boss.y=360;}
+        if(wave==4){cinematic=300;px=base()+720;py=900;roomInvestigated=true;spawnEnemy();Enemy boss=enemies.get(enemies.size()-1);boss.x=base()+720;boss.y=470;}
         double[] safeEntry=findOpenFloor(px,py,ACTOR_RADIUS);px=safeEntry[0];py=safeEntry[1];
         updateCamera();message("Follow the gold marker to the research terminal.");
         try{saveProgress();}catch(IOException ignored){}
@@ -618,7 +619,7 @@ public final class Level5GamePanel extends JPanel {
         if (dx != 0 || dy != 0) {
             double oldX = px, oldY = py;
             double length = Math.hypot(dx, dy);
-            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 3.80 : 2.75;
+            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 3.50 : 2.50;
             double[] next = moveAroundEquipment(px, py, dx / length * speed, dy / length * speed, ACTOR_RADIUS);
             px = next[0]; py = next[1];
             GameplayBridge.recordMovement(oldX, oldY, px, py);
@@ -1524,7 +1525,7 @@ public final class Level5GamePanel extends JPanel {
             a.setColor(new Color(112,159,169,150));a.drawLine(x+17,y-9,x+23,y-15);a.drawLine(x+23,y-15,x+28,y-8);a.drawLine(x+28,y-8,x+17,y-9);
             a.setColor(new Color(186,202,199,130));a.fillRect(x+30,y-5,4,2);
         }
-        for(int sy=100;room()!=2 && room()!=3 && sy<rh-100;sy+=330){
+        for(int sy=100;room()!=2 && room()!=3 && room()!=4 && sy<rh-100;sy+=330){
             int y=sy+(sy==100?65:0);
             int x=b+rw-235;
             a.setColor(new Color(13,12,23));a.fillRect(x,y-72,200,88);
@@ -1540,9 +1541,7 @@ public final class Level5GamePanel extends JPanel {
         }else if(room()==3){
             for(int y=160;y<rh-80;y+=180){a.setColor(new Color(83,57,105));a.fillRect(b+290,y,380,3);a.setColor(new Color(150,110,190));a.drawString("SUBJECT TRIAL / "+(y/180+1),b+300,y-8);}
         }else if(room()==4){
-            int cx=b+rw/2,cy=rh/2;a.setColor(new Color(72,19,48));a.fillOval(cx-280,cy-260,560,520);a.setColor(new Color(155,40,80));for(int i=0;i<3;i++)a.drawOval(cx-280+i*18,cy-260+i*18,560-i*36,520-i*36);
-            for(int x:new int[]{b+170,b+rw-170}){a.setColor(new Color(120,42,75));a.setStroke(new BasicStroke(5));a.drawPolyline(new int[]{x,x,cx},new int[]{95,cy,cy},3);a.setStroke(new BasicStroke(1));}
-            a.setColor(RED);a.drawString("ORIGIN REACTOR / CRITICAL",cx-100,cy-235);
+            drawOriginArena(a,b,rw,rh,ticks);
         }
         int index=0;
         Color[] fluids={new Color(50,215,150),new Color(72,174,240),new Color(170,75,235),new Color(240,155,50),new Color(210,55,90)};
@@ -1581,8 +1580,36 @@ public final class Level5GamePanel extends JPanel {
         }
         if(roomEntered && (!roomInvestigated || room()>=2)){int x=(int)terminalX(),y=(int)terminalY();researchDesk(a,x-65,y-55,130,45,0);a.setColor(TEAL);a.drawRect(x-55,y-66,49,30);if(room()>=2){a.setColor(GOLD);a.drawString("CLASSIFIED FILE [E]",x-70,y-75);}}
         a.dispose();
-        if(room()==4){g.setColor(new Color(125,10,45,25+(ticks/12%2)*20));g.fillRect(0,0,W,H);centered(g,"WARNING: ORIGIN CONTAINMENT FAILURE",0,145,W,25,16,RED,true);}
+        
     }
+    // Origin vault
+    private void drawOriginArena(Graphics2D a,int b,int rw,int rh,int time){
+        int cx=b+rw/2, cy=510;
+        a.setColor(new Color(18,15,29)); a.fillRect(b+365,105,710,190);
+        a.setColor(new Color(91,62,87)); a.fillRect(b+365,105,710,12);
+        for(int i=0;i<3;i++){
+            int x=b+390+i*225;
+            a.setColor(new Color(65,49,73)); a.fillRect(x,128,210,120);
+            a.setColor(new Color(9,22,31)); a.fillRect(x+6,134,198,108);
+            a.setColor(i==1?RED:TEAL); a.setFont(new Font(Font.MONOSPACED,Font.BOLD,12));
+            a.drawString(i==0?"GENESIS / DNA":i==1?"CONTAINMENT FAILED":"VITAL SIGNAL",x+12,151);
+            for(int k=0;k<170;k+=4){int yy=(int)(Math.sin((k+time)*.09)*22); if(i==0){a.fillRect(x+15+k,191+yy,4,3);a.fillRect(x+15+k,191-yy,4,3);if(k%12==0)a.drawLine(x+15+k,191+yy,x+15+k,191-yy);}else{int next=(int)(Math.sin((k+4+time)*.09)*22);a.drawLine(x+15+k,191+yy,x+19+k,191+next);}}
+        }
+        a.setColor(new Color(42,35,52));a.fillOval(cx-330,cy-235,660,470);
+        a.setColor(new Color(85,65,88));a.fillOval(cx-310,cy-215,620,430);
+        a.setColor(new Color(31,23,39));a.fillOval(cx-290,cy-195,580,390);
+        for(int i=0;i<24;i++){double angle=i*Math.PI/12;int x=cx+(int)(310*Math.cos(angle)),y=cy+(int)(215*Math.sin(angle));a.setColor(i%2==0?new Color(180,65,83):new Color(90,48,67));a.fillRect(x-8,y-4,16,8);}
+        a.setColor(new Color(126,32,66));a.setStroke(new BasicStroke(3));a.drawOval(cx-220,cy-150,440,300);a.setStroke(new BasicStroke(1));
+        for(int side:new int[]{-1,1}){int x=cx+side*440;a.setColor(new Color(12,10,20));a.setStroke(new BasicStroke(14));a.drawPolyline(new int[]{x,x,cx+side*300},new int[]{300,cy,cy},3);a.setColor(new Color(147,48,81));a.setStroke(new BasicStroke(4));a.drawPolyline(new int[]{x,x,cx+side*300},new int[]{300,cy,cy},3);a.setStroke(new BasicStroke(1));}
+        // Ruptured chamber floor and chemical leaks
+        a.setColor(new Color(80,29,56));a.fillOval(cx-100,cy-65,200,130);
+        a.setColor(new Color(205,76,115));a.drawOval(cx-100,cy-65,200,130);
+        Random r=new Random(505);for(int i=0;i<55;i++){int x=cx-155+r.nextInt(310),y=cy-100+r.nextInt(200);a.setColor(i%3==0?new Color(132,230,183,145):new Color(165,85,115,140));a.fillRect(x,y,3+r.nextInt(8),2);}
+        a.setColor(new Color(185,78,106));a.setFont(new Font(Font.MONOSPACED,Font.BOLD,16));a.drawString("ORIGIN // SUBJECT 000",cx-110,cy+180);
+        for(int i=0;i<8;i++){int x=b+380+i*95;a.setColor(new Color(130,35,62,40+(int)(20*(1+Math.sin(time*.06+i)))));a.fillOval(x-40,95,100,90);a.setColor(RED);a.fillRect(x,100,22,5);}
+        for(int i=0;i<14;i++){int x=b+60+(i*97+time/3)%1320,y=330+(i*73)%650;a.setColor(new Color(125,100,150,15));a.fillOval(x,y,100,18);}
+    }
+
     // Evolution wing furniture
     private void drawEvolutionFurniture(Graphics2D g, Rectangle r,int n){
         Graphics2D a=(Graphics2D)g.create();

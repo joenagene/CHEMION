@@ -6,8 +6,8 @@
     import battlefield.level4.Level4GamePanel;
     import battlefield.level5.Level5GamePanel;
     import game.AudioManager;
-    import game.LevelTransition;
     import game.GameManager;
+    import game.LevelTransition;
     import game.Scientist;
     import java.awt.*;
     import java.awt.event.*;
@@ -34,6 +34,7 @@
         private Level4GamePanel currentLevel4;
         private Level5GamePanel currentLevel5;
         private OutbreakIntro5 currentIntro5;
+        private OutbreakEnding currentEnding;
         private OutbreakIntro5.DialoguePanel currentLevel5Dialogue;
         private boolean level5EndingShown;
         private boolean level4EndingShown;
@@ -736,6 +737,7 @@
             if (currentLevel4 != null) currentLevel4.disposeGame();
             if (currentLevel5 != null) currentLevel5.disposeGame();
             if (currentIntro5 != null) currentIntro5.stop();
+            if (currentEnding != null) currentEnding.stop();
             stopMenuMusic();
             AudioManager.shutdown();
             dispose();
@@ -1116,6 +1118,10 @@
             }
             if (currentLevel5Dialogue != null) {
                 screens.remove(currentLevel5Dialogue); currentLevel5Dialogue = null;
+            } if (currentEnding != null) {
+                  currentEnding.stop();
+                  screens.remove(currentEnding);
+                  currentEnding = null;
             }
         }
         public void showLevel5Ending() {
@@ -1132,9 +1138,16 @@
                     if (currentLevel5Dialogue != null) {
                         screens.remove(currentLevel5Dialogue); currentLevel5Dialogue = null;
                     }
-                    currentIntro5 = OutbreakIntro5.finalEnding(this::showLevelSelection);
-                    screens.add(currentIntro5, "GenesisEnding"); screens.revalidate();
-                    showScreen("GenesisEnding"); currentIntro5.start();
+                    currentEnding = new OutbreakEnding(
+                    selectedScientistIndex,
+                    this::showLevelSelection
+                    );
+
+                    screens.add(currentEnding, "OutbreakEnding");
+                    screens.revalidate();
+                    showScreen("OutbreakEnding");
+                    currentEnding.start();
+                    currentEnding.requestFocusInWindow();
                 });
             screens.add(currentLevel5Dialogue, "GenesisEndingDialogue"); screens.revalidate();
             showScreen("GenesisEndingDialogue"); currentLevel5Dialogue.requestFocusInWindow();
