@@ -1,10 +1,10 @@
 package battlefield.level4;
 
-import game.AudioManager;
-import game.HealthEffects;
 import battlefield.level1.SaveManager;
-import game.GameplayBridge;
+import game.AudioManager;
 import game.GameManager;
+import game.GameplayBridge;
+import game.HealthEffects;
 import game.Reward;
 import java.awt.*;
 import java.awt.event.*;
@@ -197,7 +197,7 @@ public final class Level4GamePanel extends JPanel {
         int age;
         Defeated(Enemy z, BufferedImage sprite, Random rng) {
             x = z.x; y = z.y;
-            height = z.type == 3 ? 92 : 67;
+            height = z.type == 3 ? 92 : z.type == 1 ? 48 : 67;
             width = Math.min(height * 2, Math.max(1,
                     (int) Math.round(height * sprite.getWidth() / (double) sprite.getHeight())));
             BufferedImage scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
@@ -329,6 +329,7 @@ public final class Level4GamePanel extends JPanel {
         for (int k : new int[] {KeyEvent.VK_W, KeyEvent.VK_A, KeyEvent.VK_S, KeyEvent.VK_D,
                 KeyEvent.VK_UP, KeyEvent.VK_DOWN, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT,
                 KeyEvent.VK_SHIFT}) hold(k);
+        bind(KeyEvent.VK_E, "stoich", this::openStoichIfPending);
         bind(KeyEvent.VK_SPACE, "throw", this::throwPotion);
         bind(KeyEvent.VK_M, "lab", this::toggleLab);
         bind(KeyEvent.VK_J, "journal", this::toggleJournal);
@@ -511,6 +512,133 @@ public final class Level4GamePanel extends JPanel {
     private static double clamp(double v, double min, double max) { return Math.max(min, Math.min(max, v)); }
     private static int clamp(int v, int min, int max) { return Math.max(min, Math.min(max, v)); }
 
+    private boolean synthesisVerified, limitingVerified, stoichPrompted;
+
+    private boolean stoichPending() {
+        return (wave == 1 && !synthesisVerified || wave == 3 && !limitingVerified)
+                && spawned >= quota() && enemies.isEmpty() && !dead && hp > 0;
+    }
+    private void openStoichIfPending() {
+        if (!stoichPending() || paused || lab || journal || encounter) return;
+        stoichPrompted = true;
+        boolean advanced = wave == 3;
+        if (stoichDialog(advanced)) {
+            if (advanced) limitingVerified = true; else synthesisVerified = true;
+            try { saveProgress(); } catch (IOException e) { message("Checkpoint save failed: " + e.getMessage()); }
+            message("Research record verified. Next sector unlocked.");
+        } else message("Complete the reaction analysis. Press E to reopen.");
+    }
+    private boolean stoichDialog(boolean advanced) {
+        JDialog d = new JDialog(SwingUtilities.getWindowAncestor(this), "Research terminal", Dialog.ModalityType.APPLICATION_MODAL);
+        d.setUndecorated(true);
+        d.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        Color bg = new Color(32,24,46), accent = new Color(121,81,165);
+        JPanel root = new JPanel(new BorderLayout(12,10));
+        root.setBackground(bg);
+        root.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(16,20,16,20)));
+        JLabel header = new JLabel("<html><center><font size='5'>" + (advanced ? "CONTAINMENT REACTION ANALYSIS" : "EXPERIMENTAL COMPOUND SYNTHESIS") + "</font><br>LOST RESEARCH FACILITY / CLASSIFIED RESEARCH TERMINAL<br><br>N₂ + 3H₂ → 2NH₃<br>" + (advanced ? "Available: 3 mol N₂ and 6 mol H₂. Determine the limiting reactant, product and excess." : "Produce exactly 4 mol NH₃ without excess reactants.") + "<br><small>Simulated archive exercise — not a treatment formula.</small></center></html>", SwingConstants.CENTER);
+        header.setForeground(PURPLE); root.add(header, BorderLayout.NORTH);
+        int[] values = advanced ? new int[]{3,6,2,0} : new int[]{1,2,0,0};
+        boolean[] ran = {false}, accepted = {false};
+        int[] phase = {0};
+        JPanel drawing = new JPanel() {
+            @Override protected void paintComponent(Graphics raw) {
+                super.paintComponent(raw); Graphics2D g=(Graphics2D)raw.create();
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+                g.scale(getWidth()/440.0,getHeight()/250.0);
+                g.setColor(new Color(45,32,65)); g.fillRoundRect(0,0,440,250,22,22);
+                g.setColor(new Color(156,135,181)); g.setStroke(new BasicStroke(6,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
+                g.drawPolyline(new int[]{120,140,140,360,360},new int[]{85,85,25,25,50},5);
+                g.drawPolyline(new int[]{250,270,270},new int[]{85,85,25},3);
+                if(ran[0]) { g.setColor(TEAL); g.fillOval(140+phase[0]%215,21,8,8); }
+                double extent=Math.min(values[0],values[1]/3.0);
+                int[] counts={values[0],values[1],ran[0]?(int)Math.ceil(2*extent-1e-9):0};
+                Color[] colors={new Color(119,156,228),new Color(186,139,234),new Color(120,216,180)};
+                String[] names={"N₂","H₂","NH₃"};
+                for(int k=0;k<3;k++) {
+                    int x=20+k*130;
+                    g.setColor(new Color(55,43,73)); g.fillRoundRect(x,50,100,150,24,24);
+                    g.setColor(colors[k]); g.setStroke(new BasicStroke(2)); g.drawRoundRect(x,50,100,150,24,24);
+                    for(int i=0;i<counts[k];i++) {
+                        int cx=x+20+i%3*28, cy=175-i/3*33+(int)(2*Math.sin(phase[0]*.12+i));
+                        g.setColor(colors[k]); g.fillOval(cx-7,cy-7,14,14);
+                        if(k<2) g.fillOval(cx+1,cy-7,14,14);
+                        else {g.setColor(WHITE); for(int j=0;j<3;j++){double t=j*2*Math.PI/3;g.fillOval(cx+(int)(10*Math.cos(t))-3,cy+(int)(10*Math.sin(t))-3,6,6);}}
+                    }
+                    g.setFont(new Font("SansSerif",Font.BOLD,14)); g.setColor(WHITE);
+                    String s=names[k]+(k<2?" · "+values[k]+" mol":ran[0]?" · "+new java.text.DecimalFormat("0.##").format(2*extent)+" mol":""); g.drawString(s,x+50-g.getFontMetrics().stringWidth(s)/2,224);
+                } g.dispose();
+            }
+        };
+        drawing.setOpaque(false); drawing.setPreferredSize(new Dimension(440,250)); root.add(drawing,BorderLayout.CENTER);
+        JPanel controls=new JPanel(); controls.setOpaque(false); controls.setLayout(new BoxLayout(controls,BoxLayout.Y_AXIS));
+        JLabel feedback=new JLabel(" ",SwingConstants.CENTER); feedback.setForeground(RED);
+        JComboBox<String> limiting=new JComboBox<>(new String[]{"N₂","H₂"});
+        limiting.setBackground(new Color(55,43,73)); limiting.setForeground(WHITE);
+        Runnable changed=()->{ran[0]=false;feedback.setText(" ");drawing.repaint();};
+        if(advanced){ JLabel l=new JLabel("Limiting reactant"); l.setForeground(WHITE); controls.add(l); controls.add(limiting); limiting.addActionListener(e->changed.run()); }
+        int start=advanced?2:0;
+        String[] labels={"Nitrogen (N₂)","Hydrogen (H₂)","NH₃ product","Excess remaining"};
+        for(int i=start;i<start+2;i++){
+            final int k=i; JPanel row=new JPanel(new FlowLayout(FlowLayout.CENTER,8,8));row.setOpaque(false);
+            JLabel name=new JLabel(labels[i]);name.setForeground(WHITE); JLabel amount=new JLabel(values[i]+" mol");amount.setForeground(WHITE);amount.setPreferredSize(new Dimension(48,24));
+            JButton minus=stoichButton("−",accent),plus=stoichButton("+",accent);
+            minus.addActionListener(e->{values[k]=Math.max(advanced?0:1,values[k]-1);amount.setText(values[k]+" mol");changed.run();});
+            plus.addActionListener(e->{values[k]=Math.min(9,values[k]+1);amount.setText(values[k]+" mol");changed.run();});
+            row.add(name);row.add(minus);row.add(amount);row.add(plus);controls.add(row);
+        }
+        JButton run=stoichButton(advanced?"VERIFY ANALYSIS":"RUN REACTION",accent),back=stoichButton("BACK",new Color(55,43,73));
+        run.setAlignmentX(.5f);back.setAlignmentX(.5f);feedback.setAlignmentX(.5f);
+        run.addActionListener(e->{boolean correct=advanced?"H₂".equals(limiting.getSelectedItem())&&values[2]==4&&values[3]==1:values[0]==2&&values[1]==6;
+            ran[0]=!advanced||correct;drawing.repaint();feedback.setForeground(correct?TEAL:RED);feedback.setText(correct?"VERIFIED — RECORD UNLOCKED":"Incorrect quantities. Review the mole ratio.");
+            if(correct){accepted[0]=true;run.setEnabled(false);javax.swing.Timer delay=new javax.swing.Timer(650,ev->{if(d.isDisplayable()){showRecoveredRecord(d, advanced);d.dispose();}});delay.setRepeats(false);delay.start();}
+        });
+        back.addActionListener(e->d.dispose()); controls.add(feedback);controls.add(run);controls.add(Box.createVerticalStrut(8));controls.add(back);root.add(controls,BorderLayout.EAST);
+        d.setContentPane(root);d.pack();d.setLocationRelativeTo(this);
+        d.getRootPane().registerKeyboardAction(e->d.dispose(),KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE,0),JComponent.WHEN_IN_FOCUSED_WINDOW);
+        javax.swing.Timer animation=new javax.swing.Timer(35,e->{phase[0]++;drawing.repaint();});
+        boolean running=timer.isRunning();timer.stop();AudioManager.stopHeartbeat();AudioManager.stopZombieSounds();keys.clear();animation.start();
+        try{d.setVisible(true);return accepted[0];}finally{animation.stop();d.dispose();keys.clear();if(running)timer.start();requestFocusInWindow();}
+    }
+    private void showRecoveredRecord(JDialog owner, boolean advanced) {
+        JDialog record = new JDialog(owner, "Recovered research record", Dialog.ModalityType.APPLICATION_MODAL);
+        record.setUndecorated(true);
+        record.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        Color bg = new Color(32,24,46);
+        JPanel panel = new JPanel(new BorderLayout(0,16)) {
+            @Override protected void paintComponent(Graphics raw) {
+                Graphics2D g = (Graphics2D) raw.create();
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g.setColor(bg); g.fillRoundRect(0,0,getWidth()-1,getHeight()-1,26,26);
+                g.setColor(PURPLE); g.drawRoundRect(0,0,getWidth()-1,getHeight()-1,26,26);
+                g.dispose();
+            }
+        };
+        panel.setOpaque(false);
+        panel.setBorder(BorderFactory.createEmptyBorder(24,28,24,28));
+        JLabel title = new JLabel("RECOVERED RESEARCH RECORD", SwingConstants.CENTER);
+        title.setFont(new Font("SansSerif", Font.BOLD, 19)); title.setForeground(PURPLE);
+        String message = advanced ? "The lead scientist's regeneration trial failed. The restricted chamber is now accessible." : "The facility used controlled reactant ratios in its experimental trials. Project Chimera records are now accessible.";
+        JLabel body = new JLabel("<html><div style='width:340px;text-align:center'>" + message + "</div></html>", SwingConstants.CENTER);
+        body.setFont(new Font("SansSerif", Font.PLAIN, 14)); body.setForeground(WHITE);
+        JButton next = stoichButton("CONTINUE", new Color(121,81,165));
+        next.addActionListener(e -> record.dispose());
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.CENTER,0,0)); footer.setOpaque(false); footer.add(next);
+        panel.add(title, BorderLayout.NORTH); panel.add(body, BorderLayout.CENTER); panel.add(footer, BorderLayout.SOUTH);
+        record.setContentPane(panel); record.pack();
+        GraphicsDevice device = record.getGraphicsConfiguration().getDevice();
+        if (device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSPARENT)) {
+            record.setShape(new RoundRectangle2D.Double(0,0,record.getWidth(),record.getHeight(),26,26));
+        }
+        record.setLocationRelativeTo(owner); record.getRootPane().setDefaultButton(next);
+        record.setVisible(true);
+    }
+
+    private JButton stoichButton(String text,Color color){
+        JButton b=new JButton(text){@Override public void paint(Graphics raw){Graphics2D g=(Graphics2D)raw.create();g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);g.setColor(getModel().isPressed()?color.darker():color);g.fillRoundRect(0,0,getWidth(),getHeight(),getHeight(),getHeight());g.setColor(WHITE);g.setFont(getFont());FontMetrics f=g.getFontMetrics();g.drawString(getText(),(getWidth()-f.stringWidth(getText()))/2,(getHeight()-f.getHeight())/2+f.getAscent());g.dispose();}};
+        b.setFont(new Font("SansSerif",Font.BOLD,13));b.setPreferredSize(new Dimension(text.length()<2?38:185,36));b.setMaximumSize(b.getPreferredSize());b.setContentAreaFilled(false);b.setBorderPainted(false);b.setFocusPainted(false);return b;
+    }
+
     private int quota() { return wave == 1 ? 4 : wave == 2 ? 5 : wave == 3 ? 6 : 1; }
     private int activeLimit() { return wave == 1 ? 2 : wave == 2 ? 3 : wave == 3 ? 3 : 1; }
     private int nextEnemyType() {
@@ -564,8 +692,13 @@ public final class Level4GamePanel extends JPanel {
         updateEnemies();
         updateEnemyShots();
         updateProjectiles();
+        if (!encounter && stoichPending()) {
+            if (!stoichPrompted) openStoichIfPending();
+            if (stoichPending()) { if (noticeTicks == 0) message("Research verification required. Press E."); repaint(); return; }
+        }
         if (!encounter && spawned >= quota() && enemies.isEmpty()) {
             if (++waveTimer >= 95 && wave < 4) {
+                stoichPrompted = false;
                 wave++; spawned = 0; spawnTimer = 85; waveTimer = 0;
                 int supplyBonus = wave == 2 ? 22 : wave == 3 ? 30 : 42;
                 coins += supplyBonus;
@@ -802,6 +935,7 @@ public final class Level4GamePanel extends JPanel {
         healthEffects.reset();
         AudioManager.stopHeartbeat();
 
+        synthesisVerified = limitingVerified = stoichPrompted = false;
         ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
         xp = 0; coins = 55; medkits = 2; equipped = 0; target = 0; batchQty = 1;
         lastEmergencyWave = 0;
@@ -823,6 +957,8 @@ public final class Level4GamePanel extends JPanel {
         Properties p = SaveManager.load();
         p.setProperty("scientist", scientist);
         p.setProperty("level4.started", "true");
+        p.setProperty("level4.synthesisVerified", Boolean.toString(synthesisVerified));
+        p.setProperty("level4.limitingVerified", Boolean.toString(limitingVerified));
         p.setProperty("level4.won", Boolean.toString(won));
         p.setProperty("level4.px", Double.toString(px));
         p.setProperty("level4.py", Double.toString(py));
@@ -933,6 +1069,9 @@ public final class Level4GamePanel extends JPanel {
             }
             double[] safePlayer = findOpenFloor(newX, newY, ACTOR_RADIUS);
             px = safePlayer[0]; py = safePlayer[1]; hp = newHp;
+            synthesisVerified = Boolean.parseBoolean(p.getProperty("level4.synthesisVerified", Boolean.toString(newWave > 1)));
+            limitingVerified = Boolean.parseBoolean(p.getProperty("level4.limitingVerified", Boolean.toString(newWave > 3)));
+            stoichPrompted = false;
             wave = newWave; ticks = parseInt(p, "level4.ticks", 0);
             spawned = clamp(parseInt(p, "level4.spawned", 0), 0, quota());
             spawnTimer = parseInt(p, "level4.spawnTimer", 90);
@@ -1652,7 +1791,7 @@ public final class Level4GamePanel extends JPanel {
         BufferedImage sprite = sprites.get(false, ENEMY_IDS[z.type], action, z.face, frame);
         boolean red = z.flash > 0 && z.flash % 8 >= 4;
         if (sprite != null) {
-            drawSprite(g, red ? sprites.red(sprite) : sprite, x, y, boss ? 102 : z.type == 0 ? 75 : 68, 1f);
+            drawSprite(g, red ? sprites.red(sprite) : sprite, x, y, boss ? 102 : z.type == 0 ? 75 : z.type == 1 ? 48 : 68, 1f);
         } else drawFallbackEnemy(g, z, x, y, red);
         // Same visual style as Levels 1 and 2, plus a compact boss HP bar.
         if (boss) {
