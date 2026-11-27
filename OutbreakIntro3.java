@@ -356,6 +356,25 @@ public class OutbreakIntro3 extends JPanel {
         ));
 
         Scene scene = scenes[sceneIndex];
+        if (scene.heading.equals("LEVEL 4 UNLOCKED")) {
+            int centerY = getHeight() / 2;
+            g2.setFont(new Font("Monospaced", Font.BOLD, 24));
+            g2.setColor(new Color(150, 150, 150));
+            g2.drawString(scene.heading,
+                (getWidth() - g2.getFontMetrics().stringWidth(scene.heading)) / 2,
+                centerY - 65);
+            int size = 48;
+            g2.setFont(new Font("Serif", Font.BOLD, size));
+            while (size > 12 && g2.getFontMetrics().stringWidth(scene.body) > getWidth() - 40) {
+                g2.setFont(new Font("Serif", Font.BOLD, --size));
+            }
+            g2.setColor(new Color(220, 220, 220));
+            g2.drawString(scene.body,
+                (getWidth() - g2.getFontMetrics().stringWidth(scene.body)) / 2,
+                centerY);
+            g2.dispose();
+            return;
+        }
         boolean hasHeading = !scene.heading.isEmpty();
         Font headingFont = new Font("SansSerif", Font.BOLD,
                                     scene.goldHeading ? 16 : 19);

@@ -2,9 +2,13 @@ package battlefield.level1;
 
 import game.AudioManager;
 import game.HealthEffects;
-import game.GameManager;
 import game.GameplayBridge;
+import game.GameManager;
 import game.Reward;
+
+import javax.swing.*;
+import javax.imageio.ImageIO;
+
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
@@ -13,8 +17,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.List;
-import javax.imageio.ImageIO;
-import javax.swing.*;
 
 public class Level1GamePanel extends JPanel {
     private static final int W = 960, H = 540, WORLD = 3200;
@@ -49,7 +51,7 @@ public class Level1GamePanel extends JPanel {
     private static final String[] CHEMS = {"Sodium Bicarbonate", "Distilled Water", "Sodium Chloride", "Citric Acid", "Ascorbic Acid", "Sodium Citrate", "Activated Carbon", "Crystal Sample"};
     private static final String[] NAV = {"Mix Potion", "Recipes", "Elements", "Shop", "Research"};
     // Shop prices, in the same order as CHEMS. One purchase adds one ingredient.
-    private static final int[] SHOP_PRICES = {4, 2, 3, 3, 5, 5, 4, 6};
+    private static final int[] SHOP_PRICES = {4, 2, 3, 3, 5, 5, 2, 6};
     private static final String[] TABS = {"Research Journal", "Periodic Table", "Zombies", "Recipes"};
     private static final String[] DESC = {
         "Once an ordinary resident of the Abandoned Town, this infected civilian has lost control of its body. Although its muscles have weakened, the pathogen continues to stimulate movement and aggression. A thick acidic secretion now covers its infected tissue, acting as a protective barrier against treatment.",
@@ -99,6 +101,30 @@ public class Level1GamePanel extends JPanel {
     private final boolean[] seen = new boolean[4];
     private final boolean[] unlockedRecipes = new boolean[4];
     private final Set<Integer> pressed = new HashSet<>();
+    private final java.awt.KeyEventDispatcher movementDispatcher = this::handleMovementKey;
+    private boolean movementBlocked() { return encounter || lab || journal || paused || dead || won || cinematicActive; }
+    private boolean handleMovementKey(KeyEvent e) {
+        if (!isShowing() || !isFocusOwner()) { pressed.clear(); return false; }
+        int key = e.getKeyCode();
+        if (key != KeyEvent.VK_W && key != KeyEvent.VK_A && key != KeyEvent.VK_S
+                && key != KeyEvent.VK_D && key != KeyEvent.VK_UP && key != KeyEvent.VK_DOWN
+                && key != KeyEvent.VK_LEFT && key != KeyEvent.VK_RIGHT && key != KeyEvent.VK_SHIFT) return false;
+        if (e.getID() == KeyEvent.KEY_RELEASED) {
+            pressed.remove(key);
+            if (!e.isShiftDown()) pressed.remove(KeyEvent.VK_SHIFT);
+        } else if (e.getID() == KeyEvent.KEY_PRESSED && !movementBlocked()) {
+            pressed.add(key);
+            if (e.isShiftDown()) pressed.add(KeyEvent.VK_SHIFT);
+            else if (key != KeyEvent.VK_SHIFT) pressed.remove(KeyEvent.VK_SHIFT);
+        }
+        return false;
+    }
+    @Override public void removeNotify() {
+        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(movementDispatcher);
+        pressed.clear();
+        super.removeNotify();
+    }
+
     private final javax.swing.Timer timer;
     private final HealthEffects healthEffects = new HealthEffects();
 
@@ -188,6 +214,9 @@ public class Level1GamePanel extends JPanel {
         setPreferredSize(new Dimension(1280, 720));
         setBackground(new Color(20, 15, 33));
         setDoubleBuffered(true); setFocusable(true);
+        addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override public void focusLost(java.awt.event.FocusEvent e) { pressed.clear(); }
+        });
         reset(); createTown(); keys();
         addMouseListener(new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
@@ -229,8 +258,26 @@ public class Level1GamePanel extends JPanel {
         timer = new javax.swing.Timer(16, e -> updateGame());
         timer.start();
     }
-    @Override public void addNotify() { super.addNotify(); SwingUtilities.invokeLater(this::requestFocusInWindow); }
-    public void disposeGame() { timer.stop(); AudioManager.stopZombieSounds(); 
+    @Override
+    public void addNotify() {
+        super.addNotify();
+
+        java.awt.KeyboardFocusManager
+            .getCurrentKeyboardFocusManager()
+            .addKeyEventDispatcher(movementDispatcher);
+
+        SwingUtilities.invokeLater(this::requestFocusInWindow);
+    }
+
+    public void disposeGame() {
+        java.awt.KeyboardFocusManager
+            .getCurrentKeyboardFocusManager()
+            .removeKeyEventDispatcher(movementDispatcher);
+
+        pressed.clear();
+        timer.stop();
+
+        AudioManager.stopZombieSounds();
         AudioManager.stopHeartbeat();
         healthEffects.reset();
     }
@@ -376,7 +423,7 @@ public class Level1GamePanel extends JPanel {
             readInts(p.getProperty("level1.stabilized"), stabilized);
             readBools(p.getProperty("level1.seen"), seen);
             readBools(p.getProperty("level1.recipes"), unlockedRecipes);
-            enemies.clear(); shots.clear();
+            enemies.clear(); shots.clear(); deathShards.clear();
             String serialized = p.getProperty("level1.enemies", "");
             if (!serialized.isEmpty()) for (String entry : serialized.split(";")) {
                 String[] fields = entry.split(",", -1);
@@ -457,7 +504,7 @@ public class Level1GamePanel extends JPanel {
     private static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
 
     private void reset() {
-        enemies.clear(); shots.clear(); pressed.clear();
+        enemies.clear(); shots.clear(); deathShards.clear(); pressed.clear();
         int[] initial = {7, 11, 3, 2, 2, 0, 2, 1};
         System.arraycopy(initial, 0, stock, 0, stock.length);
         Arrays.fill(vials, 0); Arrays.fill(stabilized, 0); Arrays.fill(selected, false);
@@ -490,23 +537,6 @@ public class Level1GamePanel extends JPanel {
     });
     }
     private void keys() {
-        int[] movement = {KeyEvent.VK_W, KeyEvent.VK_A, KeyEvent.VK_S, KeyEvent.VK_D,
-                KeyEvent.VK_UP, KeyEvent.VK_LEFT, KeyEvent.VK_DOWN, KeyEvent.VK_RIGHT, KeyEvent.VK_SHIFT};
-        for (int k : movement) {
-            String name = "move" + k;
-            getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(k, 0, false), name + "D");
-            getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(k, 0, true), name + "U");
-            getActionMap().put(name + "D", new AbstractAction() {
-                @Override public void actionPerformed(ActionEvent e) {
-    if (!cinematicActive) {
-        pressed.add(k);
-    }
-}
-            });
-            getActionMap().put(name + "U", new AbstractAction() {
-                @Override public void actionPerformed(ActionEvent e) { pressed.remove(k); }
-            });
-        }
         bind(KeyEvent.VK_M, "lab", () -> { if (canPlay()) openLab(); });
         bind(KeyEvent.VK_J, "journal", () -> { if (canPlay()) journal = true; });
         // Number keys choose the corresponding visible potion slot, even when empty.
@@ -936,9 +966,18 @@ public class Level1GamePanel extends JPanel {
     }
     private void message(String s) { notice = s; noticeTicks = 175; }
 
-    private void updateGame() {
+private void updateGame() {
+
+    if (!paused && !lab && !journal && !encounter) {
+        deathShards.removeIf(d -> ++d.age >= SHATTER_TICKS);
+    }
+
+    if (movementBlocked() || !isFocusOwner()) {
+        pressed.clear();
+    }
 
     healthEffects.update(hp, 100);
+
     // Pause takes precedence over crafting so the timer truly stops.
     if (cinematicActive || paused || lab ||
         encounter || journal || dead || won) {
@@ -948,8 +987,7 @@ public class Level1GamePanel extends JPanel {
 
     } else {
         AudioManager.updateHeartbeat(hp, 100);
-    }
-        if (paused) { repaint(); return; }
+    }        if (paused) { repaint(); return; }
         if (lab) {
             // Shopping does not consume the limited crafting timer.
             if (labTab != 3 && --labTicks <= 0) {
@@ -1046,19 +1084,20 @@ public class Level1GamePanel extends JPanel {
                     if (z.hp > 0) {
                         AudioManager.playZombieDamage();
                     }
-                    if (z.hp <= 0) {
-                        if (z.type == 0) {
+                   if (z.hp <= 0) {
+                    if (z.type == 0) {
                         z.dying = true;
                         z.deathTicks = 0;
                         z.flash = 0;
                         z.attackCooldown = 0;
                     } else {
+                        shatter(z);
                         enemies.remove(z);
                     }
 
                     stabilized[z.type]++;
                     reward();
-                        if (z.type == 3) {
+                                        if (z.type == 3) {
                             won = true;
                             message("Mutated Survivor stabilized! Level 1 complete.");
                             try {
@@ -1103,20 +1142,63 @@ public class Level1GamePanel extends JPanel {
     }
 
     // Shop: coins are deducted only if the player can afford the ingredient.
-    private boolean buyIngredient(int ingredient) {
-        if (ingredient < 0 || ingredient >= CHEMS.length) return false;
-        int price = SHOP_PRICES[ingredient];
-        if (coins < price) {
-            labNotice = "Not enough coins for " + CHEMS[ingredient] + ". Need "
-                    + price + ", have " + coins + ".";
-            return false;
+    private int askQuantity(String title, int max, int initial, int price) {
+        if (max < 1) return 0;
+        JTextField field = new JTextField(String.valueOf(Math.min(max, Math.max(1, initial))), 10);
+        JLabel total = new JLabel();
+        Runnable refresh = () -> {
+            try { int n = Integer.parseInt(field.getText().trim());
+                total.setText(n >= 1 && n <= max ? (price > 0 ? "Total: " + ((long)n * price) + " coins" : "Potions: " + n) : "Enter 1 to " + max);
+            } catch (NumberFormatException ex) { total.setText("Enter a whole number."); }
+        };
+        field.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { refresh.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { refresh.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { refresh.run(); }
+        });
+        refresh.run();
+        Color bg = new Color(32, 24, 48), accent = new Color(101, 61, 153);
+        Font font = new Font("Monospaced", Font.BOLD, 14);
+        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), title, Dialog.ModalityType.APPLICATION_MODAL);
+        dialog.setUndecorated(true);
+        dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        JPanel content = new JPanel(new GridLayout(0, 1, 0, 12));
+        content.setBackground(bg);
+        content.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(22, 24, 22, 24)));
+        JLabel heading = new JLabel(title.toUpperCase(Locale.ROOT));
+        JLabel range = new JLabel("Quantity (1 - " + max + ")");
+        for (JLabel l : new JLabel[]{heading, range, total}) { l.setFont(font); l.setForeground(PURPLE); }
+        total.setForeground(GOLD);
+        field.setFont(font); field.setBackground(new Color(49, 36, 70)); field.setForeground(WHITE); field.setCaretColor(WHITE);
+        field.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(8, 8, 8, 8)));
+        JButton confirm = new JButton("CONFIRM"), cancel = new JButton("CANCEL");
+        for (JButton button : new JButton[]{confirm, cancel}) { button.setFont(font); button.setBackground(accent); button.setForeground(WHITE); button.setFocusPainted(false); button.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(9, 12, 9, 12))); }
+        JPanel actions = new JPanel(new GridLayout(1, 2, 10, 0)); actions.setOpaque(false); actions.add(confirm); actions.add(cancel);
+        content.add(heading); content.add(range); content.add(field); content.add(total); content.add(actions);
+        int[] result = {0};
+        confirm.addActionListener(e -> { try { int n = Integer.parseInt(field.getText().trim()); if (n >= 1 && n <= max) { result[0] = n; dialog.dispose(); return; } } catch (NumberFormatException ex) { } total.setText("Enter a whole number from 1 to " + max); });
+        cancel.addActionListener(e -> dialog.dispose());
+        dialog.setContentPane(content); dialog.getRootPane().setDefaultButton(confirm);
+        dialog.getRootPane().registerKeyboardAction(e -> dialog.dispose(), KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+        dialog.pack(); dialog.setSize(Math.max(360, dialog.getWidth()), dialog.getHeight()); dialog.setLocationRelativeTo(this);
+        boolean running = timer.isRunning(); timer.stop(); pressed.clear();
+        try { SwingUtilities.invokeLater(() -> { field.requestFocusInWindow(); field.selectAll(); }); dialog.setVisible(true); return result[0]; }
+        finally { dialog.dispose(); if (running) timer.start(); requestFocusInWindow(); }
+    }
+
+    private void purchase(int index, boolean bulk) {
+        int max = coins / SHOP_PRICES[index];
+        if (max < 1) { labNotice = "Not enough coins."; return; }
+        int qty = bulk ? askQuantity("Buy " + CHEMS[index], max, 1, SHOP_PRICES[index]) : 1;
+        if (qty == 0) return;
+        int[] updated = stock.clone(); int remaining = coins;
+        for (int i = 0; i < qty; i++) {
+            remaining = GameplayBridge.buy(remaining, CHEMS, updated, index, SHOP_PRICES[index]);
+            if (remaining < 0) { labNotice = "Purchase failed."; return; }
         }
-        int updatedCoins = GameplayBridge.buy(coins, CHEMS, stock, ingredient, price);
-        if (updatedCoins < 0) return false;
-        coins = updatedCoins;
-        labNotice = "Purchased 1 " + CHEMS[ingredient] + " for " + price
-                + " coins. Owned: " + stock[ingredient] + ".";
-        return true;
+        System.arraycopy(updated, 0, stock, 0, stock.length);
+        coins = remaining;
+        labNotice = "Purchased " + qty + " x " + CHEMS[index] + " for " + (qty * SHOP_PRICES[index]) + " coins.";
     }
 
     // POTION FIX: recipes and selection are ingredient INDEXES, never strings.
@@ -1355,10 +1437,8 @@ public class Level1GamePanel extends JPanel {
             for (int i = 0; i < CHEMS.length; i++) {
                 int cardX = 210 + (i % 2) * 350;
                 int cardY = 151 + (i / 2) * 81;
-                if (new Rectangle(cardX + 239, cardY + 18, 82, 34).contains(x, y)) {
-                    buyIngredient(i);
-                    return;
-                }
+                if (new Rectangle(cardX + 200, cardY + 18, 52, 34).contains(x, y)) { purchase(i, false); return; }
+                if (new Rectangle(cardX + 256, cardY + 18, 69, 34).contains(x, y)) { purchase(i, true); return; }
             }
         }
     }
@@ -1410,6 +1490,7 @@ public class Level1GamePanel extends JPanel {
         for (Prop p : props) drawProp(propGraphics, p);
         propGraphics.dispose();
         for (Enemy z : enemies) drawEnemy(g, z);
+        drawDeathShards(g);
         drawPlayer(g);
 
         // Green healing glow around the player
@@ -1436,7 +1517,7 @@ public class Level1GamePanel extends JPanel {
         else if (lab) drawLab(g);
         else if (journal) drawJournal(g);
         else if (dead) drawEnd(g, "GAME OVER", "Your scientist was overwhelmed.", false);
-        else if (won) drawEnd(g, "LEVEL 1 COMPLETE", "The Mutated Survivor has been stabilized!", true);
+        else if (won && deathShards.isEmpty()) drawEnd(g, "LEVEL 1 COMPLETE", "The Mutated Survivor has been stabilized!", true);
         g.dispose();
     }
     private void drawObstacle(Graphics2D g, Rectangle r) {
@@ -1598,6 +1679,36 @@ public class Level1GamePanel extends JPanel {
         g.setColor(red ? new Color(240, 102, 119, 170) : new Color(179, 148, 234, 130));
         g.drawOval(x - 15, y - 5, 30, 9);
     }
+    private static final int SHATTER_TICKS = 17;
+    private final List<DeathShard> deathShards = new ArrayList<>();
+    private static class DeathShard {
+        BufferedImage image; double x, y, vx, vy; int age;
+        DeathShard(BufferedImage image, double x, double y, double vx, double vy) {
+            this.image = image; this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+        }
+    }
+    private void shatter(Enemy z) {
+        BufferedImage pose = new BufferedImage(200, 200, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D pg = pose.createGraphics();
+        pg.translate(100 - (int)(z.x - camera), 180 - (int)z.y);
+        drawEnemy(pg, z); pg.dispose();
+        for (int y = 0; y < 200; y += 5) for (int x = 0; x < 200; x += 5) {
+            BufferedImage piece = pose.getSubimage(x, y, 5, 5);
+            boolean visible = false;
+            for (int j = 0; j < 5; j++) for (int i = 0; i < 5; i++)
+                if ((piece.getRGB(i,j) >>> 24) != 0) visible = true;
+            if (visible) deathShards.add(new DeathShard(piece, z.x + x - 100, z.y + y - 180,
+                    (random.nextDouble() - .5) * 5, -random.nextDouble() * 4));
+        }
+    }
+    private void drawDeathShards(Graphics2D g) {
+        Graphics2D pg = (Graphics2D) g.create();
+        for (DeathShard d : deathShards) {
+            pg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, 1f - d.age / (float)SHATTER_TICKS)));
+            pg.drawImage(d.image, (int)(d.x - camera + d.vx*d.age), (int)(d.y + d.vy*d.age + .17*d.age*d.age), null);
+        }
+        pg.dispose();
+    }
     private void drawEnemy(Graphics2D g, Enemy z) {
         int x = (int) (z.x - camera), y = (int) z.y;
         if (x < -110 || x > W + 110) return;
@@ -1667,8 +1778,17 @@ public class Level1GamePanel extends JPanel {
 
         String action = z.attackCooldown > 78 ? "attack" : z.type == 1 ? "run" : z.type == 2 ? "crawl" : "walk";
         BufferedImage img = sprites.get(false, name, action, z.face, ticks / (z.type == 1 ? 8 : 12));
-        int height = z.type == 3 ? BOSS_H : ZOMBIE_H;
-        if (img != null) drawSprite(g, img, x, y, height, z.type == 3 ? 85 : 63, z.flash > 0);
+        int height = z.type == 3 ? BOSS_H : z.type == 2 ? 38 : ZOMBIE_H;
+        if (img != null && z.type == 2) {
+            double scale = Math.min(76.0 / img.getWidth(), 38.0 / img.getHeight());
+            int width = Math.max(1, (int) Math.round(img.getWidth() * scale));
+            int spriteHeight = Math.max(1, (int) Math.round(img.getHeight() * scale));
+            Composite old = g.getComposite();
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, SPRITE_OPACITY));
+            g.drawImage(z.flash > 0 ? sprites.red(img) : sprites.dim(img),
+                    x - width / 2, y - spriteHeight, width, spriteHeight, null);
+            g.setComposite(old);
+        } else if (img != null) drawSprite(g, img, x, y, height, z.type == 3 ? 85 : 63, z.flash > 0);
         else {
             g.setColor(z.flash > 0 ? new Color(220, 80, 100) : new Color(99, 112, 92));
             g.fillRoundRect(x - 14, y - height + 19, 28, height - 22, 7, 7);
@@ -1961,7 +2081,7 @@ public class Level1GamePanel extends JPanel {
     private void drawLabShop(Graphics2D g) {
         label(g, "INGREDIENT SHOP", 210, 122, 14, PURPLE, true);
         label(g, "COINS: " + coins, 737, 122, 14, GOLD, true);
-        label(g, "Buy missing chemicals, then return to Mix Potion.",
+        label(g, "BUY 1 for instant purchase, or QUANTITY for bulk.",
                 210, 139, 10, MUTED, false);
 
         for (int i = 0; i < CHEMS.length; i++) {
@@ -1971,9 +2091,9 @@ public class Level1GamePanel extends JPanel {
             label(g, CHEMS[i], x + 13, y + 23, 11, WHITE, true);
             label(g, "OWNED: " + stock[i] + "   PRICE: " + SHOP_PRICES[i] + " coins",
                     x + 13, y + 47, 10, MUTED, false);
-            button(g, x + 239, y + 18, 82, 34, "BUY +1",
-                    coins >= SHOP_PRICES[i] ?
-                    new Color(113, 71, 167) : new Color(57, 46, 72));
+            Color buyColor = coins >= SHOP_PRICES[i] ? new Color(113, 71, 167) : new Color(57, 46, 72);
+            button(g, x + 200, y + 18, 52, 34, "BUY 1", buyColor);
+            button(g, x + 256, y + 18, 69, 34, "QUANTITY", buyColor);
         }
         label(g, fit(g, labNotice, 660, 10), 210, 489, 10, GOLD, false);
     }

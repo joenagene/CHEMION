@@ -168,6 +168,138 @@ public final class Level5GamePanel extends JPanel {
     private String labNotice = "Select a zombie and examine its chemistry clue.";
     private boolean paused, lab, journal, encounter, dead, won, winNotified;
     private boolean roomEntered, roomInvestigated;
+    private boolean entranceVerified;
+    private boolean needsEntranceVerification() { return wave == 1 && !roomEntered && !entranceVerified; }
+    private double securityX() { return base()+410; }
+    private double securityY() { return 310; }
+    private boolean verifyEquation(int stage) {
+        String[] reasons = {
+            "Emergency lockdown: the Genesis demonstration failed. The security terminal requires a balanced reaction record to verify scientific access before opening the infected sector.",
+            "The presentation hall guest archive is encrypted. Restore its incomplete reaction record to recover the identities of the infected guests.",
+            "The containment leak corrupted the evacuation archive. Correct the atom balance in its reaction record to recover the containment chief's report.",
+            "The directors restricted the patient trial records. Reconstruct the final reaction record to authenticate access to the hidden experiment files."
+        };
+        String[][] formulas = {{"H₂", "O₂", "H₂O"}, {"Al", "O₂", "Al₂O₃"}, {"NaHCO₃", "Na₂CO₃", "H₂O", "CO₂"}, {"Fe₂O₃", "CO", "Fe", "CO₂"}};
+        int[][] answers = {{2,1,2},{4,3,2},{2,1,1,1},{1,3,2,3}};
+        int[] split = {2,2,1,2};
+        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), "Genesis chemical verification", Dialog.ModalityType.APPLICATION_MODAL);
+        JPanel content = new JPanel(new BorderLayout(12,16));
+        content.setBackground(new Color(32,24,48));
+        content.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE,2),BorderFactory.createEmptyBorder(20,20,20,20)));
+        JLabel reason = new JLabel("<html><div style='width:500px'><b>GENESIS // CHEMICAL VERIFICATION</b><br><br>"+reasons[stage]+"<br><br>Balance the equation using the smallest positive whole-number coefficients. This is a simulated archive exercise, not a cure formula.</div></html>");
+        reason.setForeground(WHITE); reason.setFont(new Font("SansSerif",Font.PLAIN,15)); content.add(reason,BorderLayout.NORTH);
+        JPanel body = new JPanel(new BorderLayout(0,20));
+        body.setOpaque(false);
+        JPanel equation = new JPanel(new FlowLayout(FlowLayout.CENTER,12,10));
+        equation.setOpaque(false);
+        Color field = new Color(49,39,68);
+        List<JComboBox<Integer>> coefficients = new ArrayList<>();
+        for(int i=0;i<formulas[stage].length;i++) {
+            if(i>0) { JLabel sign=new JLabel(i==split[stage]?"→":"+"); sign.setForeground(GOLD); sign.setFont(new Font("SansSerif",Font.BOLD,22)); equation.add(sign); }
+            JComboBox<Integer> coefficient = new JComboBox<>(new Integer[]{1,2,3,4,5,6,7,8,9,10,11,12});
+            coefficient.setPreferredSize(new Dimension(90,40));
+            coefficient.setBackground(field); coefficient.setForeground(WHITE);
+            coefficient.setFont(new Font("SansSerif",Font.PLAIN,18));
+            coefficient.setUI(new javax.swing.plaf.basic.BasicComboBoxUI() {
+                @Override protected JButton createArrowButton() {
+                    JButton arrow = new JButton() {
+                        @Override public void paint(Graphics g) {
+                            Graphics2D a = (Graphics2D) g.create();
+                            a.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                            a.setColor(Color.WHITE);
+                            a.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                            int x=getWidth()/2, y=getHeight()/2;
+                            a.drawLine(x-5,y-3,x,y+2); a.drawLine(x,y+2,x+5,y-3); a.dispose();
+                        }
+                    };
+                    arrow.setPreferredSize(new Dimension(28,40)); arrow.setOpaque(false);
+                    arrow.setBorderPainted(false); arrow.setContentAreaFilled(false); arrow.setFocusable(false);
+                    return arrow;
+                }
+                @Override public void paint(Graphics g, JComponent c) {
+                    Graphics2D a=(Graphics2D)g.create();
+                    a.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+                    a.setColor(field); a.fillRoundRect(1,1,c.getWidth()-3,c.getHeight()-3,24,24);
+                    a.setColor(c.hasFocus()?PURPLE:new Color(111,91,139));
+                    a.drawRoundRect(1,1,c.getWidth()-3,c.getHeight()-3,24,24);
+                    a.setColor(WHITE); a.setFont(c.getFont());
+                    FontMetrics fm=a.getFontMetrics();
+                    a.drawString(String.valueOf(coefficient.getSelectedItem()),14,(c.getHeight()-fm.getHeight())/2+fm.getAscent());
+                    a.dispose();
+                }
+            });
+            coefficient.setOpaque(false);
+            coefficient.setBorder(BorderFactory.createEmptyBorder());
+            coefficient.setRenderer(new DefaultListCellRenderer(){
+                @Override public Component getListCellRendererComponent(JList<?> list,Object value,int index,boolean selected,boolean focus){
+                    super.getListCellRendererComponent(list,value,index,selected,focus);
+                    setBackground(selected?new Color(101,61,153):field); setForeground(WHITE); setOpaque(index>=0); return this;
+                }
+            });
+            coefficients.add(coefficient); equation.add(coefficient);
+            JLabel formula=new JLabel(formulas[stage][i]); formula.setForeground(WHITE); formula.setFont(new Font("SansSerif",Font.BOLD,22)); equation.add(formula);
+        }
+        body.add(equation,BorderLayout.NORTH);
+        String[][] atoms={{"Hydrogen","Oxygen"},{"Aluminium","Oxygen"},{"Sodium","Hydrogen","Carbon","Oxygen"},{"Iron","Carbon","Oxygen"}};
+        int[][][] counts={{{2,0,2},{0,2,1}},{{1,0,2},{0,2,3}},{{1,2,0,0},{1,0,2,0},{1,1,0,1},{3,3,1,2}},{{2,0,1,0},{0,1,0,1},{3,1,0,2}}};
+        JPanel table=new JPanel(new GridLayout(atoms[stage].length+1,3,16,12));
+        table.setOpaque(false); table.setBorder(BorderFactory.createEmptyBorder(8,12,12,12));
+        for(String heading:new String[]{"Atom","Reactants","Products"}){
+            JLabel label=new JLabel(heading); label.setForeground(PURPLE); label.setFont(new Font("SansSerif",Font.BOLD,16)); table.add(label);
+        }
+        JLabel[] left=new JLabel[atoms[stage].length], right=new JLabel[atoms[stage].length];
+        for(int j=0;j<left.length;j++){
+            JLabel atom=new JLabel(atoms[stage][j]); atom.setForeground(WHITE); atom.setFont(new Font("SansSerif",Font.PLAIN,16)); table.add(atom);
+            left[j]=new JLabel(); right[j]=new JLabel();
+            for(JLabel label:new JLabel[]{left[j],right[j]}){label.setFont(new Font("SansSerif",Font.PLAIN,18));table.add(label);}
+        }
+        Runnable refresh=()->{
+            for(int j=0;j<left.length;j++){
+                int l=0,r=0;
+                for(int i=0;i<coefficients.size();i++){
+                    int n=(Integer)coefficients.get(i).getSelectedItem()*counts[stage][j][i];
+                    if(i<split[stage])l+=n;else r+=n;
+                }
+                left[j].setText(Integer.toString(l));right[j].setText(Integer.toString(r));
+                left[j].setForeground(l==r?TEAL:RED);right[j].setForeground(l==r?TEAL:RED);
+            }
+        };
+        for(JComboBox<Integer> coefficient:coefficients)coefficient.addActionListener(e->refresh.run());
+        refresh.run(); body.add(table,BorderLayout.CENTER); content.add(body,BorderLayout.CENTER);
+        JPanel bottom=new JPanel(new GridLayout(0,1,0,8)); bottom.setOpaque(false);
+        JLabel feedback=new JLabel("Check that each element has equal atoms on both sides."); feedback.setForeground(GOLD); bottom.add(feedback);
+        JButton verify=roundedEquationButton("VERIFY EQUATION"), cancel=roundedEquationButton("BACK");
+        for(JButton button:new JButton[]{verify,cancel}) { button.setBackground(new Color(101,61,153)); button.setForeground(WHITE); button.setFocusPainted(false); button.setPreferredSize(new Dimension(100,38)); bottom.add(button); }
+        boolean[] passed={false};
+        verify.addActionListener(e->{
+            for(int i=0;i<coefficients.size();i++) if((Integer)coefficients.get(i).getSelectedItem()!=answers[stage][i]) { feedback.setText("Not correct. Check atom counts and use the smallest ratio."); return; }
+            passed[0]=true; dialog.dispose();
+        });
+        cancel.addActionListener(e->dialog.dispose()); content.add(bottom,BorderLayout.SOUTH);
+        dialog.setContentPane(content); dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE); dialog.getRootPane().setDefaultButton(verify); dialog.pack(); dialog.setLocationRelativeTo(this);
+        boolean running=timer.isRunning(); timer.stop(); keys.clear();
+        try { dialog.setVisible(true); return passed[0]; }
+        finally { dialog.dispose(); keys.clear(); if(running)timer.start(); requestFocusInWindow(); }
+    }
+    private JButton roundedEquationButton(String text) {
+        JButton button=new JButton(text) {
+            @Override public void paint(Graphics g) {
+                Graphics2D a=(Graphics2D)g.create();
+                a.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+                a.setColor(getModel().isPressed()?new Color(82,48,128):getModel().isRollover()?new Color(126,79,181):getBackground());
+                int arc=getHeight()-4;
+                a.fillRoundRect(1,1,getWidth()-3,getHeight()-3,arc,arc);
+                a.setColor(new Color(155,119,205)); a.drawRoundRect(1,1,getWidth()-3,getHeight()-3,arc,arc);
+                a.setColor(Color.WHITE); a.setFont(getFont());
+                FontMetrics fm=a.getFontMetrics();
+                a.drawString(getText(),(getWidth()-fm.stringWidth(getText()))/2,(getHeight()-fm.getHeight())/2+fm.getAscent());
+                a.dispose();
+            }
+        };
+        button.setOpaque(false); button.setContentAreaFilled(false); button.setBorderPainted(false);
+        button.setRolloverEnabled(true); button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return button;
+    }
     private int fundedWave;
     private final boolean[] openedDoors = new boolean[4];
     private static final int[] DOOR_X = {632, 1264, 1896, 2528};
@@ -630,6 +762,11 @@ public final class Level5GamePanel extends JPanel {
     private void interactWithRoom() {
         if(!canPlay() || transition>0 || cinematic>0)return;
         if(!roomEntered){
+            if(needsEntranceVerification()) {
+                if(Math.hypot(px-securityX(),py-securityY())>110) { message("Access locked. Investigate the entrance security table [E]."); return; }
+                if(verifyEquation(0)) { entranceVerified=true; message("Verification accepted. Wave 1 door unlocked. Press E at the door."); try{saveProgress();}catch(IOException ignored){} }
+                return;
+            }
             if(Math.hypot(px-doorX(),py-doorY())>110){message("Follow the gold marker to the door.");return;}
             if(wave==4&&!sealReady){
                 if (!sealIntroSeen) { sealIntroActive=true; sealIntroTicks=0; keys.clear(); return; }
@@ -638,6 +775,7 @@ public final class Level5GamePanel extends JPanel {
             }
             transition=65;keys.clear();
         }else if(roomInvestigated && room()>=2 && Math.hypot(px-terminalX(),py-terminalY())<110){keys.clear();journalTab=0;journal=true;}else if(!roomInvestigated && Math.hypot(px-terminalX(),py-terminalY())<110){
+            if(wave<=3 && !verifyEquation(wave)) return;
             roomInvestigated=true;spawnTimer=45;keys.clear();journalTab=0;journal=true;
             message(ROOM_CLUES[wave-1]);try{saveProgress();}catch(IOException ignored){}
         }
@@ -874,7 +1012,7 @@ public final class Level5GamePanel extends JPanel {
         AudioManager.stopHeartbeat();
 
         ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
-        transition=0;cinematic=0;sealReady=false;sealIntroSeen=false;sealIntroActive=false;sealIntroTicks=0;cameraY=0; fundedWave = 0; roomEntered = false; roomInvestigated = false; Arrays.fill(openedDoors, false);
+        transition=0;cinematic=0;sealReady=false;sealIntroSeen=false;sealIntroActive=false;sealIntroTicks=0;cameraY=0; fundedWave = 0; roomEntered = false; roomInvestigated = false; Arrays.fill(openedDoors, false); entranceVerified=false;
         xp = 0; coins = 55; medkits = 2; equipped = 0; target = 0; batchQty = 1;
         hurtTicks = 0; throwCooldown = 0; labTicks = 0; labTab = 0;
         journalTab = 2; journalChoice = 0; encounterType = -1;
@@ -904,6 +1042,7 @@ public final class Level5GamePanel extends JPanel {
         p.setProperty("level5.sealIntroSeen", Boolean.toString(sealIntroSeen));
         p.setProperty("level5.roomEntered", Boolean.toString(roomEntered));
         p.setProperty("level5.roomInvestigated", Boolean.toString(roomInvestigated));
+        p.setProperty("level5.entranceVerified", Boolean.toString(entranceVerified));
         p.setProperty("level5.openedDoors", join(openedDoors));
         p.setProperty("level5.spawned", Integer.toString(spawned));
         p.setProperty("level5.spawnTimer", Integer.toString(spawnTimer));
@@ -1022,6 +1161,7 @@ public final class Level5GamePanel extends JPanel {
             wave = newWave; ticks = parseInt(p, "level5.ticks", 0);
             roomEntered = Boolean.parseBoolean(p.getProperty("level5.roomEntered", "false"));
             roomInvestigated = Boolean.parseBoolean(p.getProperty("level5.roomInvestigated", "false"));
+            entranceVerified = Boolean.parseBoolean(p.getProperty("level5.entranceVerified", Boolean.toString(wave>1 || roomEntered)));
             boolean[] loadedDoors = parseBools(p.getProperty("level5.openedDoors"), new boolean[4]);
             System.arraycopy(loadedDoors, 0, openedDoors, 0, 4);
             spawned = clamp(parseInt(p, "level5.spawned", 0), 0, quota());
@@ -1539,10 +1679,10 @@ public final class Level5GamePanel extends JPanel {
     }
     private void drawExplorationObjective(Graphics2D g){
         if(won||dead)return;
-        String objective=!roomEntered?(wave==4&&!sealReady?"DISSOLVE CHEMICAL SEAL [E]":"OPEN NEXT DOOR [E]"):!roomInvestigated?"INVESTIGATE TERMINAL [E]":"STABILIZE INFECTED / "+(spawned-enemies.size())+" OF "+quota();
+        String objective=needsEntranceVerification()?"VERIFY SECURITY TABLE [E]":!roomEntered?(wave==4&&!sealReady?"DISSOLVE CHEMICAL SEAL [E]":"OPEN NEXT DOOR [E]"):!roomInvestigated?"INVESTIGATE TERMINAL [E]":"STABILIZE INFECTED / "+(spawned-enemies.size())+" OF "+quota();
         g.setColor(new Color(9,6,16,26));g.fillRoundRect(230,91,500,52,9,9);g.setColor(new Color(240,190,95,45));g.drawRoundRect(230,91,500,52,9,9);
         centered(g,objective,230,94,500,25,16,GOLD,true);centered(g,ROOM_NAMES[wave-1]+" | J: READ CLUES",230,119,500,20,12,WHITE,true);
-        if(!roomEntered||!roomInvestigated){double tx=roomEntered?terminalX():doorX(),ty=roomEntered?terminalY():doorY();int x=clamp((int)(tx-camera),65,W-65),y=clamp((int)(ty-cameraY)-40,180,420);String dir=Math.hypot(px-tx,py-ty)<110?"PRESS E":Math.abs(tx-px)>Math.abs(ty-py)?(tx>px?"GO RIGHT >":"< GO LEFT"):(ty>py?"GO DOWN / S":"GO UP / W");g.setColor(GOLD);g.fillPolygon(new int[]{x-12,x+12,x},new int[]{y,y,y+15},3);centered(g,dir,x-75,y-22,150,20,13,GOLD,true);}
+        if(!roomEntered||!roomInvestigated){double tx=needsEntranceVerification()?securityX():roomEntered?terminalX():doorX(),ty=needsEntranceVerification()?securityY():roomEntered?terminalY():doorY();int x=clamp((int)(tx-camera),65,W-65),y=clamp((int)(ty-cameraY)-40,180,420);String dir=Math.hypot(px-tx,py-ty)<110?"PRESS E":Math.abs(tx-px)>Math.abs(ty-py)?(tx>px?"GO RIGHT >":"< GO LEFT"):(ty>py?"GO DOWN / S":"GO UP / W");g.setColor(GOLD);g.fillPolygon(new int[]{x-12,x+12,x},new int[]{y,y,y+15},3);centered(g,dir,x-75,y-22,150,20,13,GOLD,true);}
     }
     private void drawNewRoom(Graphics2D g){
         Graphics2D a=(Graphics2D)g.create();a.translate(-camera,-cameraY);int b=base(),rw=roomWidth(),rh=roomHeight();

@@ -59,7 +59,7 @@ public final class Level3GamePanel extends JPanel {
         "Sodium Bicarbonate", "Distilled Water", "Activated Carbon", "Zeolite",
         "Sodium Thiosulfate", "Silica Gel", "Calcium Carbonate", "Potassium Iodide"
     };
-    private static final int[] PRICES = {4, 2, 6, 7, 6, 5, 4, 7};
+    private static final int[] PRICES = {4, 2, 2, 5, 3, 4, 4, 5};
     private static final int[] START_STOCK = {5, 12, 4, 3, 3, 3, 2, 2};
     private static final int[][] RECIPES = {
         {0, 1},          // Brute: buffer + carrier (2)
@@ -150,7 +150,11 @@ public final class Level3GamePanel extends JPanel {
 
     private double px = 132, py = 369, camera, hp = 100;
     private int ticks, wave = 1, spawned, spawnTimer = 90, waveTimer;
-    private int xp, coins = 22, medkits = 2, equipped, target, batchQty = 1;
+    private boolean concentrationVerified, dilutionVerified;
+    private boolean dilutionPromptShown;
+    private static final int REACTOR_X = 2942, REACTOR_Y = 355;
+    private static final int MIX_X = 1386, MIX_Y = 355;
+    private int xp, coins = 85, medkits = 2, equipped, target, batchQty = 1;
     private int hurtTicks, throwCooldown, labTicks, labTab, journalTab = 2, journalChoice;
     private int noticeTicks, encounterType = -1, hoverControl;
     private String facing = "right";
@@ -327,6 +331,7 @@ public final class Level3GamePanel extends JPanel {
                 KeyEvent.VK_SHIFT}) hold(k);
         bind(KeyEvent.VK_SPACE, "throw", this::throwPotion);
         bind(KeyEvent.VK_M, "lab", this::toggleLab);
+        bind(KeyEvent.VK_E, "mixingPanel", this::interactMixingPanel);
         bind(KeyEvent.VK_J, "journal", this::toggleJournal);
         bind(KeyEvent.VK_H, "heal", this::heal);
         bind(KeyEvent.VK_Q, "nextPotion", this::switchPotion);
@@ -455,6 +460,7 @@ public final class Level3GamePanel extends JPanel {
         return 3;
     }
     private void spawnEnemy() {
+        if (wave == 4 && !dilutionVerified) return;
         int type = nextEnemyType();
         double ex = Math.min(WORLD - 85, Math.max(px + 290, camera + W + 40));
         ex = Math.min(WORLD - 85, ex + rng.nextInt(115));
@@ -464,6 +470,151 @@ public final class Level3GamePanel extends JPanel {
         enemies.add(z);
         spawned++; spawnTimer = type == 3 ? 165 : 120;
     }
+    private boolean concentrationPending() {
+        return spawned >= quota() && enemies.isEmpty() && !won && ((wave == 1 && !concentrationVerified) || (wave == 3 && !dilutionVerified));
+    }
+    private boolean nearMixingPanel() { return Math.hypot(px - (wave == 3 ? REACTOR_X : MIX_X), py - (wave == 3 ? REACTOR_Y : MIX_Y)) <= 120; }
+    private JButton concentrationButton(String text) {
+        JButton b = new JButton(text) {
+            @Override public void paint(Graphics graphics) {
+                Graphics2D g = (Graphics2D) graphics.create();
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g.setColor(getModel().isPressed() ? new Color(82, 49, 121) : new Color(101, 61, 153));
+                g.fillRoundRect(0, 0, getWidth()-1, getHeight()-1, 24, 24);
+                g.setColor(PURPLE); g.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 24, 24);
+                g.setFont(getFont()); g.setColor(WHITE); FontMetrics fm = g.getFontMetrics();
+                g.drawString(getText(), (getWidth()-fm.stringWidth(getText()))/2, (getHeight()-fm.getHeight())/2+fm.getAscent()); g.dispose();
+            }
+        };
+        b.setFont(new Font("Monospaced", Font.BOLD, 14)); b.setPreferredSize(new Dimension(120, 40));
+        b.setContentAreaFilled(false); b.setBorderPainted(false); b.setFocusPainted(false); return b;
+    }
+    private static final class MixingVisual extends JPanel {
+        private final int[] values;
+        private double mass=10, volume=100, phase;
+        MixingVisual(int[] values) { this.values=values; setOpaque(false); setPreferredSize(new Dimension(480,170)); }
+        void animate() { mass+=(values[0]-mass)*0.18; volume+=(values[1]-volume)*0.18; phase+=0.09; repaint(); }
+        @Override protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            Graphics2D g=(Graphics2D)graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+            g.translate(getWidth()/2.0-240,0); g.scale(1,getHeight()/170.0);
+            g.setColor(new Color(45,32,65)); g.fillRoundRect(0,0,480,170,20,20);
+            g.setColor(new Color(90,68,115)); g.fillRoundRect(35,143,410,8,8,8);
+            g.setColor(new Color(72,54,95)); g.fillRoundRect(80,28,100,112,18,18);
+            g.setColor(PURPLE); g.drawRoundRect(80,28,100,112,18,18);
+            g.setColor(new Color(117,91,145)); g.fillRoundRect(96,15,68,20,6,6);
+            Shape old=g.getClip(); g.clip(new RoundRectangle2D.Double(85,36,90,99,12,12));
+            int h=(int)(mass*1.8); g.setColor(new Color(172,110,230)); g.fillRect(85,135-h,90,h);
+            g.setColor(new Color(220,180,255)); for(int i=0;i<30;i++){int x=89+(i*29)%82; int y=132-(i*13)%Math.max(1,h); g.fillOval(x,y,3,3);} g.setClip(old);
+            Path2D beaker=new Path2D.Double(); beaker.moveTo(300,25); beaker.lineTo(410,25); beaker.lineTo(398,139); beaker.lineTo(312,139); beaker.closePath();
+            g.setColor(new Color(55,47,83)); g.fill(beaker); old=g.getClip(); g.clip(beaker);
+            double y=139-volume*.52; Path2D liquid=new Path2D.Double(); liquid.moveTo(295,145); liquid.lineTo(295,y); for(int x=295;x<=415;x+=3) liquid.lineTo(x,y+2*Math.sin(x*.12+phase)); liquid.lineTo(415,145); liquid.closePath();
+            g.setColor(new Color(93,145,220)); g.fill(liquid); g.setColor(new Color(180,218,255,160)); for(int i=0;i<7;i++){double yy=139-((phase*10+i*17)%Math.max(1,139-y)); g.drawOval(322+i*10,(int)yy,4,4);} g.setClip(old);
+            g.setColor(PURPLE); g.setStroke(new BasicStroke(2)); g.draw(beaker);
+            for(int i=1;i<=4;i++){int yy=139-i*26; g.drawLine(388,yy,401,yy);}
+            g.setColor(WHITE); g.setFont(new Font("Monospaced",Font.BOLD,12)); g.drawString("SOLUTE",105,164); g.drawString("SOLUTION",326,164);
+            g.dispose();
+        }
+    }
+    private void interactMixingPanel() {
+        if (!concentrationPending() || paused || lab || journal || encounter || dead) return;
+        if (wave != 3 && !nearMixingPanel()) { message(wave == 3 ? "Find the Reactor Lock in the Reactor Core." : "Find the Mixing Panel in the Reagent Mixing sector."); return; }
+        if (wave == 3) { interactDilution(); return; }
+        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), "Reagent Mixing System", Dialog.ModalityType.APPLICATION_MODAL);
+        dialog.setUndecorated(true); dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        JPanel content = new JPanel(); content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBackground(new Color(32,24,48));
+        content.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(22,24,22,24)));
+        JLabel heading = new JLabel("REAGENT MIXING SYSTEM", SwingConstants.CENTER);
+        JLabel story = new JLabel("<html><div style='width:480px'>The factory leak corrupted the production archive. Restore the simulated reagent concentration to recover the records and discover what caused the mutations.</div></html>");
+        JLabel formula = new JLabel("% (m/v) = solute mass (g) / final volume (mL) x 100");
+        JLabel target = new JLabel("REQUIRED CONCENTRATION: 20% (m/v)");
+        JLabel feedback = new JLabel("Adjust the measurements, then verify.");
+        for (JLabel l : new JLabel[]{heading,story,formula,target,feedback}) { l.setForeground(WHITE); l.setFont(new Font("Monospaced",Font.BOLD,13)); }
+        heading.setForeground(PURPLE); target.setForeground(GOLD);
+        int[] values = {10,100};
+        content.add(heading); content.add(story); content.add(formula); content.add(target);
+        MixingVisual visual = new MixingVisual(values); content.add(visual);
+        javax.swing.Timer visualTimer = new javax.swing.Timer(30, e -> visual.animate());
+        for (int i=0;i<2;i++) {
+            final int k=i; JPanel row = new JPanel(new BorderLayout(12,0)); row.setOpaque(false);
+            JLabel value = new JLabel(i==0?"Solute mass: 10 g":"Final volume: 100 mL",SwingConstants.CENTER); value.setForeground(WHITE); value.setFont(new Font("Monospaced",Font.BOLD,14));
+            JButton minus=concentrationButton("-"), plus=concentrationButton("+"); minus.setPreferredSize(new Dimension(55,40)); plus.setPreferredSize(new Dimension(55,40));
+            java.util.function.IntConsumer adjust = d -> { int step=k==0?5:25; values[k]=Math.max(k==0?5:50,Math.min(k==0?50:200,values[k]+d*step)); value.setText(k==0?"Solute mass: "+values[k]+" g":"Final volume: "+values[k]+" mL"); feedback.setText("Adjust the measurements, then verify."); feedback.setForeground(WHITE); };
+            minus.addActionListener(e->adjust.accept(-1)); plus.addActionListener(e->adjust.accept(1)); row.add(minus,BorderLayout.WEST); row.add(value,BorderLayout.CENTER); row.add(plus,BorderLayout.EAST); content.add(row);
+        }
+        content.add(feedback); JPanel actions=new JPanel(new GridLayout(1,2,10,0)); actions.setOpaque(false);
+        JButton verify=concentrationButton("VERIFY SOLUTION"), back=concentrationButton("BACK"); actions.add(verify); actions.add(back); content.add(actions);
+        verify.addActionListener(e->{
+            if(values[0]*100 != values[1]*20) { feedback.setForeground(RED); feedback.setText(values[0]*100 < values[1]*20 ? "Concentration too low. Try again." : "Concentration too high. Try again."); return; }
+            concentrationVerified=true; verify.setEnabled(false); content.remove(story); content.remove(formula); content.remove(target); content.remove(visual); visualTimer.stop();
+            heading.setText("RECOVERED FACTORY RECORD");
+            feedback.setForeground(TEAL); feedback.setText("20% verified. Archive access restored.");
+            JLabel record=new JLabel("<html><div style='width:480px'>Production records show that an experimental solution exceeded its intended concentration before the leak. Exposed workers developed severe mutations. The experimental compounds were ordered by a classified research facility.</div></html>"); record.setForeground(WHITE); record.setFont(new Font("Monospaced",Font.PLAIN,14)); content.add(record,1); back.setText("CONTINUE");
+            try { saveProgress(); } catch(IOException ex) { message("Checkpoint save failed: "+ex.getMessage()); }
+            content.revalidate(); content.repaint(); dialog.pack(); dialog.setLocationRelativeTo(this);
+        });
+        back.addActionListener(e->dialog.dispose()); dialog.setContentPane(content); dialog.pack(); dialog.setLocationRelativeTo(this);
+        boolean running=timer.isRunning(); timer.stop(); keys.clear();
+        visualTimer.start();
+        try { dialog.setVisible(true); } finally { visualTimer.stop(); dialog.dispose(); keys.clear(); if(running) timer.start(); requestFocusInWindow(); }
+    }
+
+    private void interactDilution() {
+        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), "Emergency Reactor Dilution", Dialog.ModalityType.APPLICATION_MODAL);
+        dialog.setUndecorated(true); dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        JPanel content = new JPanel(); content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBackground(new Color(32,24,48));
+        content.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(22,24,22,24)));
+        JLabel heading = new JLabel("EMERGENCY REACTOR DILUTION");
+        JLabel story = new JLabel("<html><div style='width:480px'>The reactor safety lock requires a simulated dilution test. Restore the safety system to recover the final mutation record and unlock the boss encounter.</div></html>");
+        JLabel formula = new JLabel("C1 V1 = C2 V2   |   40% x 100 mL = 10% x V2");
+        JLabel target = new JLabel("INITIAL: 40% / 100 mL     TARGET: 10%");
+        JLabel feedback = new JLabel("Adjust the water added, then verify.");
+        for (JLabel l : new JLabel[]{heading,story,formula,target,feedback}) { l.setForeground(WHITE); l.setFont(new Font("Monospaced",Font.BOLD,13)); content.add(l); }
+        content.remove(feedback); heading.setForeground(PURPLE); target.setForeground(GOLD);
+        int[] water = {0};
+        JPanel visual = new JPanel() {
+            double volume=100, phase;
+            { setOpaque(false); setPreferredSize(new Dimension(480,190)); }
+            @Override protected void paintComponent(Graphics graphics) {
+                super.paintComponent(graphics); volume += (100+water[0]-volume)*.15; phase+=.09;
+                Graphics2D g=(Graphics2D)graphics.create(); g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+                g.translate(getWidth()/2.0-240,0); g.scale(1,getHeight()/190.0);
+                g.setColor(new Color(45,32,65)); g.fillRoundRect(0,0,480,190,20,20);
+                g.setColor(new Color(90,68,115)); g.fillRoundRect(40,164,400,8,8,8);
+                Path2D vessel=new Path2D.Double(); vessel.moveTo(165,15); vessel.lineTo(315,15); vessel.lineTo(300,160); vessel.lineTo(180,160); vessel.closePath();
+                g.setColor(new Color(55,47,83)); g.fill(vessel); Shape old=g.getClip(); g.clip(vessel);
+                double y=160-volume*.27; Path2D liquid=new Path2D.Double(); liquid.moveTo(160,165); liquid.lineTo(160,y);
+                for(int x=160;x<=320;x+=3) liquid.lineTo(x,y+2*Math.sin(x*.12+phase)); liquid.lineTo(320,165); liquid.closePath();
+                double t=Math.min(1,(volume-100)/300); g.setColor(new Color((int)(130-40*t),(int)(65+100*t),(int)(190+45*t))); g.fill(liquid);
+                g.setColor(new Color(220,230,255,160)); for(int i=0;i<8;i++){int yy=(int)(158-(phase*12+i*19)%Math.max(1,158-y)); g.drawOval(188+i*14,yy,5,5);} g.setClip(old);
+                g.setColor(PURPLE); g.setStroke(new BasicStroke(2)); g.draw(vessel); g.setFont(new Font("Monospaced",Font.BOLD,11));
+                for(int i=1;i<=5;i++){int yy=160-i*27; g.drawLine(292,yy,309,yy); g.drawString((i*100)+" mL",320,yy+4);}
+                g.setColor(WHITE); g.drawString("SIMULATED REACTOR SOLUTION",145,183); g.dispose();
+            }
+        }; content.add(visual);
+        javax.swing.Timer animation = new javax.swing.Timer(30,e->visual.repaint());
+        JPanel row=new JPanel(new BorderLayout(12,0)); row.setOpaque(false);
+        JLabel value=new JLabel("Water added: 0 mL | Final volume: 100 mL",SwingConstants.CENTER); value.setForeground(WHITE); value.setFont(new Font("Monospaced",Font.BOLD,12));
+        JButton minus=concentrationButton("-"), plus=concentrationButton("+"); minus.setPreferredSize(new Dimension(55,40)); plus.setPreferredSize(new Dimension(55,40));
+        java.util.function.IntConsumer adjust=d->{water[0]=Math.max(0,Math.min(400,water[0]+d*25)); value.setText("Water added: "+water[0]+" mL | Final volume: "+(100+water[0])+" mL"); feedback.setForeground(WHITE); feedback.setText("Adjust the water added, then verify.");};
+        minus.addActionListener(e->adjust.accept(-1)); plus.addActionListener(e->adjust.accept(1)); row.add(minus,BorderLayout.WEST); row.add(value,BorderLayout.CENTER); row.add(plus,BorderLayout.EAST); content.add(row); content.add(feedback);
+        JPanel actions=new JPanel(new GridLayout(1,2,10,0)); actions.setOpaque(false); JButton verify=concentrationButton("VERIFY SOLUTION"), back=concentrationButton("BACK"); actions.add(verify); actions.add(back); content.add(actions);
+        verify.addActionListener(e->{
+            if(40*100!=10*(100+water[0])) { feedback.setForeground(RED); feedback.setText(water[0]<300?"Concentration too high. Try again.":"Concentration too low. Try again."); return; }
+            dilutionVerified=true; animation.stop(); content.remove(story); content.remove(formula); content.remove(target); content.remove(visual); content.remove(row); actions.remove(verify);
+            heading.setText("RECOVERED REACTOR RECORD"); feedback.setForeground(TEAL); feedback.setText("10% verified. Reactor lock released.");
+            JLabel record=new JLabel("<html><div style='width:480px'>The reactor archive identifies the Chemical Abomination as a severe mutation linked to the experimental chemical leak. The safety lock is released. Prepare for the final encounter.</div></html>"); record.setForeground(WHITE); record.setFont(new Font("Monospaced",Font.PLAIN,14)); content.add(record,1); back.setText("CONTINUE");
+            try { saveProgress(); } catch(IOException ex) { message("Checkpoint save failed: "+ex.getMessage()); }
+            content.revalidate(); content.repaint(); dialog.pack(); dialog.setLocationRelativeTo(this);
+        });
+        back.addActionListener(e->dialog.dispose()); dialog.setContentPane(content); dialog.pack(); dialog.setLocationRelativeTo(this);
+        boolean running=timer.isRunning(); timer.stop(); keys.clear(); animation.start();
+        try { dialog.setVisible(true); } finally { animation.stop(); dialog.dispose(); keys.clear(); if(running) timer.start(); requestFocusInWindow(); }
+    }
+
     private void updateGame() {
 
         healthEffects.update(hp, 100);
@@ -499,7 +650,16 @@ public final class Level3GamePanel extends JPanel {
         updateEnemyShots();
         updateProjectiles();
         if (!encounter && spawned >= quota() && enemies.isEmpty()) {
-            if (++waveTimer >= 95 && wave < 4) {
+            if (concentrationPending()) {
+                waveTimer = 0;
+                if (wave == 3 && !dilutionPromptShown && !dead && hp > 0) {
+                    dilutionPromptShown = true;
+                    SwingUtilities.invokeLater(() -> {
+                        if (wave == 3 && concentrationPending() && !paused && !lab && !journal && !encounter && !dead) interactDilution();
+                        else dilutionPromptShown = false;
+                    });
+                }
+            } else if (++waveTimer >= 95 && wave < 4 && (wave != 3 || dilutionVerified)) {
                 wave++; spawned = 0; spawnTimer = 85; waveTimer = 0;
                 message(wave == 4 ? "WARNING: REACTOR CHAMBER - ABOMINATION DETECTED"
                         : "WAVE " + wave + " - new factory mutations detected.");
@@ -723,13 +883,18 @@ public final class Level3GamePanel extends JPanel {
         throwCooldown = 26;
     }
     private void reset() {
-        px = 132; py = 369; camera = 0; hp = 100;
+    px = 132; py = 369; camera = 0; hp = 100;
 
-        healthEffects.reset();
-        AudioManager.stopHeartbeat();
+    healthEffects.reset();
+    AudioManager.stopHeartbeat();
 
-        ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
-        xp = 0; coins = 22; medkits = 2; equipped = 0; target = 0; batchQty = 1;
+    ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
+
+    concentrationVerified = false;
+    dilutionVerified = false;
+    dilutionPromptShown = false;
+
+    xp = 0; coins = 85; medkits = 2; equipped = 0; target = 0; batchQty = 1;
         hurtTicks = 0; throwCooldown = 0; labTicks = 0; labTab = 0;
         journalTab = 2; journalChoice = 0; encounterType = -1;
         facing = "right"; encountered = null; paused = false; lab = false; journal = false;
@@ -754,6 +919,8 @@ public final class Level3GamePanel extends JPanel {
         p.setProperty("level3.hp", Double.toString(hp));
         p.setProperty("level3.ticks", Integer.toString(ticks));
         p.setProperty("level3.wave", Integer.toString(wave));
+        p.setProperty("level3.concentrationVerified", Boolean.toString(concentrationVerified));
+        p.setProperty("level3.dilutionVerified", Boolean.toString(dilutionVerified));
         p.setProperty("level3.spawned", Integer.toString(spawned));
         p.setProperty("level3.spawnTimer", Integer.toString(spawnTimer));
         p.setProperty("level3.waveTimer", Integer.toString(waveTimer));
@@ -856,12 +1023,12 @@ public final class Level3GamePanel extends JPanel {
                     Double.parseDouble(a[4]), clamp(Integer.parseInt(a[5]), 0, 150)));
             }
             px = newX; py = newY; hp = newHp;
-            wave = newWave; ticks = parseInt(p, "level3.ticks", 0);
+            wave = newWave; dilutionPromptShown = false; dilutionVerified = Boolean.parseBoolean(p.getProperty("level3.dilutionVerified", "false")); concentrationVerified = wave > 1 || Boolean.parseBoolean(p.getProperty("level3.concentrationVerified", "false")); ticks = parseInt(p, "level3.ticks", 0);
             spawned = clamp(parseInt(p, "level3.spawned", 0), 0, quota());
             spawnTimer = parseInt(p, "level3.spawnTimer", 90);
             waveTimer = parseInt(p, "level3.waveTimer", 0);
             xp = parseInt(p, "level3.xp", 0);
-            coins = parseInt(p, "level3.coins", 22);
+            coins = parseInt(p, "level3.coins", 85);
             medkits = parseInt(p, "level3.medkits", 2);
             equipped = clamp(parseInt(p, "level3.equipped", 0), 0, 3);
             target = clamp(parseInt(p, "level3.target", 0), 0, 3);
@@ -874,6 +1041,11 @@ public final class Level3GamePanel extends JPanel {
             enemies.clear(); enemies.addAll(loadedEnemies);
             projectiles.clear(); projectiles.addAll(loadedShots);
             enemyShots.clear(); enemyShots.addAll(loadedEnemyShots);
+            // Old checkpoints cannot bypass the mandatory reactor verification.
+            if (wave == 4 && !dilutionVerified) {
+                wave = 3; spawned = quota(); waveTimer = 0; spawnTimer = 85;
+                enemies.clear(); projectiles.clear(); enemyShots.clear();
+            }
             bossAuraTicks = 0;
             defeated.clear();
             camera = clamp(px - W * .38, 0, WORLD - W);
@@ -961,12 +1133,63 @@ public final class Level3GamePanel extends JPanel {
         Arrays.fill(selected, false);
         message("Crafted " + batchQty + " " + NAMES[recipe] + " potion(s)! Press SPACE or click to throw.");
     }
-    private void purchase(int index) {
-        if (coins < PRICES[index]) { labNotice = "Not enough coins."; return; }
-        int remaining = GameplayBridge.buy(coins, CHEMS, stock, index, PRICES[index]);
-        if (remaining < 0) { labNotice = "Not enough coins."; return; }
+    private int askQuantity(String title, int max, int initial, int price) {
+        if (max < 1) return 0;
+        JTextField field = new JTextField(String.valueOf(Math.min(max, Math.max(1, initial))), 10);
+        JLabel total = new JLabel();
+        Runnable refresh = () -> {
+            try { int n = Integer.parseInt(field.getText().trim());
+                total.setText(n >= 1 && n <= max ? (price > 0 ? "Total: " + ((long)n * price) + " coins" : "Potions: " + n) : "Enter 1 to " + max);
+            } catch (NumberFormatException ex) { total.setText("Enter a whole number."); }
+        };
+        field.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { refresh.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { refresh.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { refresh.run(); }
+        });
+        refresh.run();
+        Color bg = new Color(32, 24, 48), accent = new Color(101, 61, 153);
+        Font font = new Font("Monospaced", Font.BOLD, 14);
+        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), title, Dialog.ModalityType.APPLICATION_MODAL);
+        dialog.setUndecorated(true);
+        dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        JPanel content = new JPanel(new GridLayout(0, 1, 0, 12));
+        content.setBackground(bg);
+        content.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(22, 24, 22, 24)));
+        JLabel heading = new JLabel(title.toUpperCase(Locale.ROOT));
+        JLabel range = new JLabel("Quantity (1 - " + max + ")");
+        for (JLabel l : new JLabel[]{heading, range, total}) { l.setFont(font); l.setForeground(PURPLE); }
+        total.setForeground(GOLD);
+        field.setFont(font); field.setBackground(new Color(49, 36, 70)); field.setForeground(WHITE); field.setCaretColor(WHITE);
+        field.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(8, 8, 8, 8)));
+        JButton confirm = new JButton("CONFIRM"), cancel = new JButton("CANCEL");
+        for (JButton button : new JButton[]{confirm, cancel}) { button.setFont(font); button.setBackground(accent); button.setForeground(WHITE); button.setFocusPainted(false); button.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(PURPLE), BorderFactory.createEmptyBorder(9, 12, 9, 12))); }
+        JPanel actions = new JPanel(new GridLayout(1, 2, 10, 0)); actions.setOpaque(false); actions.add(confirm); actions.add(cancel);
+        content.add(heading); content.add(range); content.add(field); content.add(total); content.add(actions);
+        int[] result = {0};
+        confirm.addActionListener(e -> { try { int n = Integer.parseInt(field.getText().trim()); if (n >= 1 && n <= max) { result[0] = n; dialog.dispose(); return; } } catch (NumberFormatException ex) { } total.setText("Enter a whole number from 1 to " + max); });
+        cancel.addActionListener(e -> dialog.dispose());
+        dialog.setContentPane(content); dialog.getRootPane().setDefaultButton(confirm);
+        dialog.getRootPane().registerKeyboardAction(e -> dialog.dispose(), KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+        dialog.pack(); dialog.setSize(Math.max(360, dialog.getWidth()), dialog.getHeight()); dialog.setLocationRelativeTo(this);
+        boolean running = timer.isRunning(); timer.stop(); keys.clear();
+        try { SwingUtilities.invokeLater(() -> { field.requestFocusInWindow(); field.selectAll(); }); dialog.setVisible(true); return result[0]; }
+        finally { dialog.dispose(); if (running) timer.start(); requestFocusInWindow(); }
+    }
+
+    private void purchase(int index, boolean bulk) {
+        int max = coins / PRICES[index];
+        if (max < 1) { labNotice = "Not enough coins."; return; }
+        int qty = bulk ? askQuantity("Buy " + CHEMS[index], max, 1, PRICES[index]) : 1;
+        if (qty == 0) return;
+        int[] updated = stock.clone(); int remaining = coins;
+        for (int i = 0; i < qty; i++) {
+            remaining = GameplayBridge.buy(remaining, CHEMS, updated, index, PRICES[index]);
+            if (remaining < 0) { labNotice = "Purchase failed."; return; }
+        }
+        System.arraycopy(updated, 0, stock, 0, stock.length);
         coins = remaining;
-        labNotice = "Purchased " + CHEMS[index] + ".";
+        labNotice = "Purchased " + qty + " x " + CHEMS[index] + " for " + (qty * PRICES[index]) + " coins.";
     }
 
     private boolean hudControlsAvailable() {
@@ -1062,9 +1285,8 @@ public final class Level3GamePanel extends JPanel {
         } else if (labTab == 3) {
             for (int i = 0; i < CHEMS.length; i++) {
                 int bx = 210 + i % 2 * 350, by = 151 + i / 2 * 81;
-                if (new Rectangle(bx + 239, by + 18, 82, 34).contains(x, y)) {
-                    purchase(i); return;
-                }
+                if (new Rectangle(bx + 200, by + 18, 52, 34).contains(x, y)) { purchase(i, false); return; }
+                if (new Rectangle(bx + 256, by + 18, 69, 34).contains(x, y)) { purchase(i, true); return; }
             }
         }
     }
@@ -1092,6 +1314,14 @@ public final class Level3GamePanel extends JPanel {
 
         if (canPlay()) {
             healthEffects.drawVignette(g, W, H);
+        }
+
+        if (concentrationPending() && !paused && !lab && !journal && !encounter && !dead) {
+            int x = (wave == 3 ? REACTOR_X : MIX_X) - (int) camera;
+            g.setColor(GOLD); g.drawRoundRect(x - 96, 246, 192, 114, 12, 12);
+            hudPanel(g, 218, 92, 530, 32);
+            label(g, wave == 3 ? "[E] RESTORE REACTOR SAFETY SYSTEM" : (nearMixingPanel() ? "[E] RESTORE REAGENT MIXING SYSTEM" : "OBJECTIVE: FIND MIXING PANEL IN REAGENT MIXING SECTOR"), 230, 112, 11, GOLD, true);
+            if (x >= 100 && x <= W - 100) label(g, wave == 3 ? "[E] REACTOR LOCK" : "[E] MIXING PANEL", x - 65, 240, 12, GOLD, true);
         }
 
         drawHUD(g);
@@ -1790,7 +2020,7 @@ public final class Level3GamePanel extends JPanel {
     private void drawLabShop(Graphics2D g) {
         label(g, "INGREDIENT SHOP", 210, 122, 14, PURPLE, true);
         label(g, "COINS: " + coins, 737, 122, 14, GOLD, true);
-        label(g, "Buy missing chemicals, then return to Mix Potion.",
+        label(g, "BUY 1 for instant purchase, or QUANTITY for bulk.",
                 210, 139, 10, MUTED, false);
 
         for (int i = 0; i < CHEMS.length; i++) {
@@ -1800,9 +2030,9 @@ public final class Level3GamePanel extends JPanel {
             label(g, CHEMS[i], x + 13, y + 23, 11, WHITE, true);
             label(g, "OWNED: " + stock[i] + "   PRICE: " + SHOP_PRICES[i] + " coins",
                     x + 13, y + 47, 10, MUTED, false);
-            button(g, x + 239, y + 18, 82, 34, "BUY +1",
-                    coins >= SHOP_PRICES[i] ?
-                    new Color(113, 71, 167) : new Color(57, 46, 72));
+            Color buyColor = coins >= SHOP_PRICES[i] ? new Color(113, 71, 167) : new Color(57, 46, 72);
+            button(g, x + 200, y + 18, 52, 34, "BUY 1", buyColor);
+            button(g, x + 256, y + 18, 69, 34, "QUANTITY", buyColor);
         }
         label(g, fit(g, labNotice, 660, 10), 210, 489, 10, GOLD, false);
     }
