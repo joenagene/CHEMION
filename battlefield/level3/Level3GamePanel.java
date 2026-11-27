@@ -1,11 +1,10 @@
 package battlefield.level3;
 
+import battlefield.level1.SaveManager;
 import game.AudioManager;
 import game.HealthEffects;
-
-import battlefield.level1.SaveManager;
-import game.GameplayBridge;
 import game.GameManager;
+import game.GameplayBridge;
 import game.Reward;
 import java.awt.*;
 import java.awt.event.*;
@@ -1776,12 +1775,16 @@ public final class Level3GamePanel extends JPanel {
         label(g, "Fictional in-game recipes only - NOT real-world chemical or medical advice.", 210, 478, 10, MUTED, false);
     }
     private void drawLabElements(Graphics2D g) {
-        label(g, "CHEMICAL & MATERIAL INVENTORY", 210, 124, 14, PURPLE, true);
+        label(g, "CHEMICAL & MATERIAL INFORMATION", 210, 124, 14, PURPLE, true);
+        label(g, "pH: typical water behavior; *pure water at 25 C", 210, 140, 10, WHITE, false);
         for (int i = 0; i < CHEMS.length; i++) {
             int x = 210 + (i % 2) * 350, y = 151 + (i / 2) * 81;
             panel(g, x, y, 334, 69, 238);
-            label(g, CHEMS[i], x + 14, y + 28, 12, WHITE, true);
-            label(g, "AVAILABLE: " + stock[i], x + 14, y + 50, 10, PURPLE, true);
+            String[] info = game.ChemistryInfo.get(CHEMS[i]);
+            label(g, CHEMS[i], x + 14, y + 15, 12, WHITE, true);
+            label(g, "Formula: " + info[0] + " | " + info[4], x + 14, y + 30, 10, PURPLE, true);
+            label(g, "Atomic No: " + info[1], x + 14, y + 44, 10, WHITE, false);
+            label(g, "Bond: " + info[2] + " | pH: " + info[3], x + 14, y + 58, 10, WHITE, false);
         }
     }
     private void drawLabShop(Graphics2D g) {

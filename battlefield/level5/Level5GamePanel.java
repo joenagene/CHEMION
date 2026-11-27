@@ -2240,14 +2240,16 @@ public final class Level5GamePanel extends JPanel {
     }
     // Element properties
     private void drawLabElements(Graphics2D g) {
-        label(g, "CHEMICAL & MATERIAL INVENTORY", 210, 124, 14, PURPLE, true);
+        label(g, "CHEMICAL & MATERIAL INFORMATION", 210, 124, 14, PURPLE, true);
+        label(g, "pH: typical water behavior; *pure water at 25 C", 210, 140, 10, WHITE, false);
         for (int i = 0; i < CHEMS.length; i++) {
             int x = 210 + (i % 2) * 350, y = 151 + (i / 2) * 81;
             panel(g, x, y, 334, 69, 238);
-            label(g, CHEMS[i], x + 14, y + 18, 12, WHITE, true);
-            String[] properties = {"Purified solvent; minimal impurities.", "Porous carbon; adsorbs contaminants.", "Mild bicarbonate base; neutralizes acids.", "Porous mineral; exchanges certain ions.", "Desiccant; adsorbs moisture.", "Calcium source; reacts with acids.", "Reducing agent; reacts with chlorine.", "Ionic salt; supplies iodide ions."};
-            wrap(g, properties[i], x + 14, y + 35, 306, 11, 13, WHITE);
-            label(g, "AVAILABLE: " + stock[i], x + 14, y + 60, 10, PURPLE, true);
+            String[] info = game.ChemistryInfo.get(CHEMS[i]);
+            label(g, CHEMS[i], x + 14, y + 15, 12, WHITE, true);
+            label(g, "Formula: " + info[0] + " | " + info[4], x + 14, y + 30, 10, PURPLE, true);
+            label(g, "Atomic No: " + info[1], x + 14, y + 44, 10, WHITE, false);
+            label(g, "Bond: " + info[2] + " | pH: " + info[3], x + 14, y + 58, 10, WHITE, false);
         }
     }
     // Shop
