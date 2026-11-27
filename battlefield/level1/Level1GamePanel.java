@@ -1,13 +1,14 @@
 package battlefield.level1;
 
 import game.AudioManager;
-
+import game.HealthEffects;
 import game.GameplayBridge;
 import game.GameManager;
 import game.Reward;
 
 import javax.swing.*;
 import javax.imageio.ImageIO;
+
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
@@ -21,6 +22,17 @@ public class Level1GamePanel extends JPanel {
     private static final int W = 960, H = 540, WORLD = 3200;
     private static final int TOWN_HEIGHT = 620, ROAD_TOP = 207;
     private static final int PLAYER_H = 65, ZOMBIE_H = 61, BOSS_H = 88;
+    private static final int DEATH_FRAMES = 4;
+    private static final int DEATH_FRAME_TICKS = 12;
+
+    private static final int DEATH_DURATION =
+            DEATH_FRAMES * DEATH_FRAME_TICKS;
+
+    private static final int DEATH_HOLD_TICKS = 30;
+    private static final int DEATH_FADE_TICKS = 40;
+
+    private static final int DEATH_TOTAL_TICKS =
+            DEATH_DURATION + DEATH_HOLD_TICKS + DEATH_FADE_TICKS;
     private static final float SPRITE_OPACITY = 0.87f;
     private static final Color WHITE = new Color(242, 234, 255);
     private static final Color PURPLE = new Color(204, 170, 251);
@@ -114,6 +126,8 @@ public class Level1GamePanel extends JPanel {
     }
 
     private final javax.swing.Timer timer;
+    private final HealthEffects healthEffects = new HealthEffects();
+
     private boolean cinematicActive = false;
     private BufferedImage town;
 
@@ -152,6 +166,10 @@ public class Level1GamePanel extends JPanel {
 
     private static class Enemy {
         int type, attackCooldown, flash;
+
+        boolean dying = false;
+        int deathTicks = 0;
+
         String face = "left";
         double x, y, hp, maxHp;
         boolean entering = true;
@@ -240,11 +258,29 @@ public class Level1GamePanel extends JPanel {
         timer = new javax.swing.Timer(16, e -> updateGame());
         timer.start();
     }
-    @Override public void addNotify() { super.addNotify();
-        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(movementDispatcher); SwingUtilities.invokeLater(this::requestFocusInWindow); }
+    @Override
+    public void addNotify() {
+        super.addNotify();
+
+        java.awt.KeyboardFocusManager
+            .getCurrentKeyboardFocusManager()
+            .addKeyEventDispatcher(movementDispatcher);
+
+        SwingUtilities.invokeLater(this::requestFocusInWindow);
+    }
+
     public void disposeGame() {
-        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(movementDispatcher);
-        pressed.clear(); timer.stop(); AudioManager.stopZombieSounds(); }
+        java.awt.KeyboardFocusManager
+            .getCurrentKeyboardFocusManager()
+            .removeKeyEventDispatcher(movementDispatcher);
+
+        pressed.clear();
+        timer.stop();
+
+        AudioManager.stopZombieSounds();
+        AudioManager.stopHeartbeat();
+        healthEffects.reset();
+    }
     
     public void setCinematicActive(boolean active) {
     cinematicActive = active;
@@ -327,7 +363,13 @@ public class Level1GamePanel extends JPanel {
         p.setProperty("level1.seen", boolsToString(seen));
         p.setProperty("level1.recipes", boolsToString(unlockedRecipes));
         StringBuilder enemyData = new StringBuilder();
+        List<Enemy> savedEnemies = new ArrayList<>();
+
         for (Enemy z : enemies) {
+            if (z.dying) continue;
+
+            savedEnemies.add(z);
+
             if (enemyData.length() > 0) enemyData.append(';');
             enemyData.append(z.type).append(',').append(z.x).append(',').append(z.y)
                 .append(',').append(z.hp).append(',').append(z.attackCooldown)
@@ -337,7 +379,7 @@ public class Level1GamePanel extends JPanel {
         p.setProperty("level1.enemies", enemyData.toString());
         StringBuilder projectileData = new StringBuilder();
         for (Potion shot : shots) {
-            int enemyIndex = enemies.indexOf(shot.enemy);
+            int enemyIndex = savedEnemies.indexOf(shot.enemy);
             if (enemyIndex < 0) continue;
             if (projectileData.length() > 0) projectileData.append(';');
             projectileData.append(enemyIndex).append(',').append(shot.type)
@@ -468,6 +510,8 @@ public class Level1GamePanel extends JPanel {
         Arrays.fill(vials, 0); Arrays.fill(stabilized, 0); Arrays.fill(selected, false);
         Arrays.fill(seen, false); Arrays.fill(unlockedRecipes, false);
         px = 130; py = 386; camera = 0; hp = 100;
+        healthEffects.reset();
+        AudioManager.stopHeartbeat();
         ticks = hurtTicks = throwCooldown = xp = 0;
         coins = 10; // Starting funds so players can recover a missing essential ingredient.
         medkits = 2;
@@ -922,16 +966,28 @@ public class Level1GamePanel extends JPanel {
     }
     private void message(String s) { notice = s; noticeTicks = 175; }
 
-    private void updateGame() {
-        if (!paused && !lab && !journal && !encounter) deathShards.removeIf(d -> ++d.age >= SHATTER_TICKS);
-        if (movementBlocked() || !isFocusOwner()) pressed.clear();
-        // Pause takes precedence over crafting so the timer truly stops.
-        if (cinematicActive || paused || lab ||
-            encounter || journal || dead || won) {
+private void updateGame() {
 
-            AudioManager.stopZombieSounds();
-        }
-        if (paused) { repaint(); return; }
+    if (!paused && !lab && !journal && !encounter) {
+        deathShards.removeIf(d -> ++d.age >= SHATTER_TICKS);
+    }
+
+    if (movementBlocked() || !isFocusOwner()) {
+        pressed.clear();
+    }
+
+    healthEffects.update(hp, 100);
+
+    // Pause takes precedence over crafting so the timer truly stops.
+    if (cinematicActive || paused || lab ||
+        encounter || journal || dead || won) {
+
+        AudioManager.stopZombieSounds();
+        AudioManager.stopHeartbeat();
+
+    } else {
+        AudioManager.updateHeartbeat(hp, 100);
+    }        if (paused) { repaint(); return; }
         if (lab) {
             // Shopping does not consume the limited crafting timer.
             if (labTab != 3 && --labTicks <= 0) {
@@ -972,6 +1028,16 @@ public class Level1GamePanel extends JPanel {
             }
         } else waveTimer = 0;
         for (Enemy z : new ArrayList<>(enemies)) {
+            if (z.dying) {
+            z.deathTicks++;
+
+            if (z.deathTicks >= DEATH_TOTAL_TICKS) {
+                enemies.remove(z);
+                }
+
+                continue;
+            }
+
             if (z.flash > 0) z.flash--;
             if (z.attackCooldown > 0) z.attackCooldown--;
             if (z.entering) {
@@ -1005,7 +1071,8 @@ public class Level1GamePanel extends JPanel {
             }
         }
         for (Potion p : new ArrayList<>(shots)) {
-            if (!enemies.contains(p.enemy)) { shots.remove(p); continue; }
+            if (!enemies.contains(p.enemy) || p.enemy.dying) { shots.remove(p); continue;
+            }
             p.move();
             if (p.t >= 1) {
                 shots.remove(p);
@@ -1017,9 +1084,20 @@ public class Level1GamePanel extends JPanel {
                     if (z.hp > 0) {
                         AudioManager.playZombieDamage();
                     }
-                    if (z.hp <= 0) {
-                        shatter(z); enemies.remove(z); stabilized[z.type]++; reward();
-                        if (z.type == 3) {
+                   if (z.hp <= 0) {
+                    if (z.type == 0) {
+                        z.dying = true;
+                        z.deathTicks = 0;
+                        z.flash = 0;
+                        z.attackCooldown = 0;
+                    } else {
+                        shatter(z);
+                        enemies.remove(z);
+                    }
+
+                    stabilized[z.type]++;
+                    reward();
+                                        if (z.type == 3) {
                             won = true;
                             message("Mutated Survivor stabilized! Level 1 complete.");
                             try {
@@ -1226,14 +1304,25 @@ public class Level1GamePanel extends JPanel {
         }
     }
     private void heal() {
-        if (!canPlay() || medkits == 0 || hp >= 100) return;
-        medkits--; hp = GameplayBridge.useMedkit(hp, scientist);
-        message("Medkit used. Health restored.");
+    if (!canPlay() || medkits == 0 || hp >= 100) return;
+
+    medkits--;
+    double previousHp = hp;
+
+    hp = GameplayBridge.useMedkit(hp, scientist);
+
+    if (hp > previousHp) {
+        AudioManager.playMedkitSound();
+        healthEffects.triggerHeal();
+        AudioManager.updateHeartbeat(hp, 100);
     }
+
+    message("Medkit used. Health restored.");
+}
     private Enemy autoTarget() {
         Enemy best = null; double score = Double.POSITIVE_INFINITY;
         for (Enemy z : enemies) {
-            if (z.entering) continue;
+            if (z.entering || z.dying) continue;
             double dx = z.x - px, dy = z.y - py, dist = Math.hypot(dx, dy);
             boolean close = dist <= 305;
             boolean aligned =
@@ -1305,7 +1394,7 @@ public class Level1GamePanel extends JPanel {
         if (new Rectangle(760, 473, 184, 48).contains(x, y)) { journal = true; return; }
         Enemy clicked = null;
         for (Enemy z : enemies) {
-            if (z.entering) continue;
+            if (z.entering || z.dying) continue;
             if (Math.hypot(z.x - camera - x, z.y - 34 - y) < 46 && Math.hypot(z.x - px, z.y - py) < 470) {
                 clicked = z; break;
             }
@@ -1403,7 +1492,24 @@ public class Level1GamePanel extends JPanel {
         for (Enemy z : enemies) drawEnemy(g, z);
         drawDeathShards(g);
         drawPlayer(g);
+
+        // Green healing glow around the player
+        healthEffects.drawHealEffect(
+            g,
+            (int) (px - camera),
+            (int) py - PLAYER_H / 2,
+            45
+        );
+
         for (Potion p : shots) drawPotion(g, p);
+
+        // Low-health red screen edges
+        if (!cinematicActive && !paused && !lab &&
+            !encounter && !journal && !dead && !won) {
+
+            healthEffects.drawVignette(g, W, H);
+        }
+
         // Targeting remains automatic; no green bar or target indicator above zombies.
         drawHUD(g);
         if (paused) drawPauseMenu(g);
@@ -1607,6 +1713,69 @@ public class Level1GamePanel extends JPanel {
         int x = (int) (z.x - camera), y = (int) z.y;
         if (x < -110 || x > W + 110) return;
         String name = z.type == 3 ? "mutated_survivor" : TYPES[z.type] + "_zombie";
+
+        // Death animation
+        if (z.dying) {
+            int frame = Math.min(
+                DEATH_FRAMES - 1,
+                z.deathTicks / DEATH_FRAME_TICKS
+            );
+
+            // LEFT sprite sheet has reversed frame order
+            if (z.face.equals("left")) {
+                frame = DEATH_FRAMES - 1 - frame;
+            }
+
+            BufferedImage deathImg = sprites.get(
+                false, name, "death", z.face, frame
+            );
+
+            if (deathImg != null) {
+
+    float alpha = 1.0f;
+
+    int fadeStart = DEATH_DURATION + DEATH_HOLD_TICKS;
+
+            if (z.deathTicks >= fadeStart) {
+                alpha = 1.0f -
+                        (z.deathTicks - fadeStart)
+                        / (float) DEATH_FADE_TICKS;
+            }
+
+            alpha = Math.max(0.0f, Math.min(1.0f, alpha));
+
+            int height = ZOMBIE_H;
+
+            int width = clamp(
+                (int) Math.round(
+                    height * deathImg.getWidth()
+                    / (double) Math.max(1, deathImg.getHeight())
+                ),
+                20, 120
+            );
+
+            Composite old = g.getComposite();
+
+            g.setComposite(AlphaComposite.getInstance(
+                AlphaComposite.SRC_OVER,
+                SPRITE_OPACITY * alpha
+            ));
+
+            g.drawImage(
+                sprites.dim(deathImg),
+                x - width / 2,
+                y - height,
+                width,
+                height,
+                null
+            );
+
+            g.setComposite(old);
+        }
+
+            return;
+        }
+
         String action = z.attackCooldown > 78 ? "attack" : z.type == 1 ? "run" : z.type == 2 ? "crawl" : "walk";
         BufferedImage img = sprites.get(false, name, action, z.face, ticks / (z.type == 1 ? 8 : 12));
         int height = z.type == 3 ? BOSS_H : z.type == 2 ? 38 : ZOMBIE_H;
@@ -2076,7 +2245,13 @@ public class Level1GamePanel extends JPanel {
         BufferedImage get(boolean player, String name, String action, String direction, int frame) {
             String root = (player ? "characters/" : "enemies/level1/") + name;
             BufferedImage[] frames = load(root, name, action, direction);
-            if (frames == null) {
+
+                if (action.equals("death") &&
+                        (frames == null || frames.length != DEATH_FRAMES)) {
+                    return null;
+                }
+
+                if (frames == null) {
                 String fallback = player ? "walk" : name.equals("runner_zombie") ? "run" : name.equals("crawler_zombie") ? "crawl" : "walk";
                 if (!action.equals(fallback)) frames = load(root, name, fallback, direction);
             }

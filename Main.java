@@ -375,19 +375,41 @@
 
         cardLayout.show(screens, screenName);
 
-        boolean isLevel1Gameplay = screenName.equals("Level1");
+        int gameplayLevel = 0;
 
-        AudioManager.setAmbientEnabled(
-            activeTransition == null &&
-            !isLevel1Gameplay &&
-            isStoryOrGameplayScreen(screenName)
-        );
+    switch (screenName) {
+        case "Level1":
+            gameplayLevel = 1;
+            break;
+        case "Level2":
+            gameplayLevel = 2;
+            break;
+        case "Level3":
+            gameplayLevel = 3;
+            break;
+        case "Level4":
+        case "Level4Battlefield":
+            gameplayLevel = 4;
+            break;
 
-        if (activeTransition == null && isLevel1Gameplay) {
-            AudioManager.playGameplayMusic();
-        } else if (!isLevel1Gameplay) {
-            AudioManager.stopGameplayMusic();
-        }
+        case "Level5":
+        case "Level5Battlefield":
+            gameplayLevel = 5;
+            break;
+    }
+
+    AudioManager.setAmbientEnabled(
+        activeTransition == null &&
+        gameplayLevel == 0 &&
+        isStoryOrGameplayScreen(screenName)
+    );
+
+    if (activeTransition == null && gameplayLevel > 0) {
+        AudioManager.playGameplayMusic(gameplayLevel);
+    } else {
+        AudioManager.stopGameplayMusic();
+    }
+
 
         if (screenName.equals("Instructions")) {
             for (Component component : screens.getComponents()) {
@@ -410,15 +432,16 @@
             }
         }
 
-        private static boolean isStoryOrGameplayScreen(String name) {
-            return name.equals("StoryNarration") || name.equals("StoryDialogue")
-                || name.equals("Level1") || name.equals("Level2") || name.equals("Level3")
-                || name.equals("Level2Narration") || name.equals("Level2Conversation")
-                || name.equals("Level2EndingDialogue") || name.equals("Level3Narration")
-                || name.equals("Level3Conversation") || name.equals("Level3EndingDialogue")
-                || name.equals("Level3Unlocked") || name.equals("Level4Unlocked")
-                || name.equals("Level5Unlocked");
-        }
+       private static boolean isStoryOrGameplayScreen(String name) {
+    return name.equals("StoryNarration")
+        || name.equals("StoryDialogue")
+        || name.matches("Level[1-5]")
+        || name.matches("Level[45]Battlefield")
+        || name.matches("Level[2-5](Narration|Conversation|EndingDialogue)")
+        || name.matches("Level[3-5]Unlocked")
+        || name.equals("GenesisEnding")
+        || name.equals("GenesisEndingDialogue");
+    }
 
         // START GAME -> INTRO -> CONVERSATION -> ACTUAL LEVEL 1
         // CharacterSelection sends the selected character index (0 to 4).
@@ -1026,7 +1049,7 @@
         }
 
         private void clearLevel2Screens() {
-            if (currentLevel2 != null) {
+            if (currentLevel2 != null) {                                                                                                                                                                        
                 currentLevel2.disposeGame();
                 screens.remove(currentLevel2);
                 currentLevel2 = null;

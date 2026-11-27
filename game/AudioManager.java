@@ -13,23 +13,52 @@ public final class AudioManager {
     private static Clip ambient, click, coin, cinematic, gameplay;
 
     private static javax.swing.Timer gameplayFade;
+    private static int gameplayLevel = 0;
 
-    private static final float GAMEPLAY_VOLUME = 0.40f;
-    private static final Clip[] zombieGrowls = new Clip[4];
+    private static Clip medkitSound;
+    private static Clip heartbeatLow;
+    private static Clip heartbeatCritical;
+
+private static Clip activeHeartbeat;
+
+    private static final float GAMEPLAY_VOLUME = 0.60f;
+    private static final Clip[] zombieGrowls = new Clip[16];
     private static Clip zombieDamage;
 
     private static final String[] ZOMBIE_SOUNDS = {
         "assets/audio/zombie_common.wav",
         "assets/audio/zombie_runner.wav",
         "assets/audio/zombie_crawler.wav",
-        "assets/audio/zombie_boss.wav"
+        "assets/audio/zombie_boss.wav",
+
+        // Level 2
+        "assets/audio/zombie_acid.wav",
+        "assets/audio/zombie_patient_zero.wav",
+        "assets/audio/zombie_toxic.wav",
+        "assets/audio/zombie_plague_doctor.wav",
+
+            // Level 3
+        "assets/audio/zombie_toxic_brute.wav",
+        "assets/audio/zombie_venom_spitter.wav",
+        "assets/audio/zombie_explosive.wav",
+        "assets/audio/zombie_chemical_abomination.wav",
+
+        // Level 4
+        "assets/audio/zombie_experiment_01.wav",
+        "assets/audio/zombie_mutant_stalker.wav",
+        "assets/audio/zombie_project_chimera.wav",
+        "assets/audio/zombie_regenerator.wav"
     };
 
-private static final float ZOMBIE_VOLUME = 0.45f;
-private static final float BOSS_VOLUME = 0.50f;
-private static final float DAMAGE_VOLUME = 0.60f;
+    private static final float ZOMBIE_VOLUME = 0.45f;
+    private static final float BOSS_VOLUME = 0.50f;
+    private static final float DAMAGE_VOLUME = 0.60f;
 
-private static long nextGrowlTime = 0;
+    private static final float MEDKIT_VOLUME = 0.90f;
+    private static final float HEARTBEAT_LOW_VOLUME = 1.00f;
+    private static final float HEARTBEAT_CRITICAL_VOLUME = 1.00f;
+
+    private static long nextGrowlTime = 0;
 
     private static boolean installed;
     private static final AWTEventListener BUTTON_LISTENER = event -> {
@@ -150,28 +179,123 @@ private static long nextGrowlTime = 0;
         return;
     }
 
-    setVolume(growl, type == 3 ? BOSS_VOLUME : ZOMBIE_VOLUME);
+    setVolume(growl,
+    (type == 3 || type == 7 || type == 11 || type == 15)
+    ? BOSS_VOLUME : ZOMBIE_VOLUME);
 
     growl.setFramePosition(0);
     growl.start();
 
     nextGrowlTime = now + 6000;
-}
-
-public static synchronized void playZombieDamage() {
-
-    if (zombieDamage == null) {
-        zombieDamage = load("assets/audio/zombie_damage.wav");
     }
 
-    if (zombieDamage == null) return;
+    public static synchronized void playLevel2ZombieGrowl(int type) {
+        if (type < 0 || type > 3) return;
 
-    setVolume(zombieDamage, DAMAGE_VOLUME);
+        playZombieGrowl(type + 4);
+    }
+    public static synchronized void playLevel3ZombieGrowl(int type) {
+    if (type < 0 || type > 3) return;
 
-    zombieDamage.stop();
-    zombieDamage.setFramePosition(0);
-    zombieDamage.start();
+    playZombieGrowl(type + 8);
+    }
+
+    public static synchronized void playLevel4ZombieGrowl(int type) {
+        if (type < 0 || type > 3) return;
+
+        playZombieGrowl(type + 12);
+    }
+    public static synchronized void playMedkitSound() {
+    if (medkitSound == null) {
+        medkitSound = load("assets/audio/medkit_use.wav");
+    }
+
+    if (medkitSound == null) return;
+
+    medkitSound.stop();
+    medkitSound.setFramePosition(0);
+    setVolume(medkitSound, MEDKIT_VOLUME);
+    medkitSound.start();
+    }
+    public static synchronized void updateHeartbeat(
+        double hp, double maxHp) {
+
+    if (hp <= 0 || maxHp <= 0) {
+        stopHeartbeat();
+        return;
+    }
+
+    double healthPercent = (hp / maxHp) * 100.0;
+
+    if (healthPercent > 25) {
+        stopHeartbeat();
+        return;
+    }
+
+    Clip target;
+    float volume;
+
+    if (healthPercent <= 10) {
+
+        if (heartbeatCritical == null) {
+            heartbeatCritical = load(
+                "assets/audio/heartbeat_critical.wav"
+            );
+        }
+
+        target = heartbeatCritical;
+        volume = HEARTBEAT_CRITICAL_VOLUME;
+
+    } else {
+
+        if (heartbeatLow == null) {
+            heartbeatLow = load(
+                "assets/audio/heartbeat_low.wav"
+            );
+        }
+
+        target = heartbeatLow;
+        volume = HEARTBEAT_LOW_VOLUME;
+    }
+
+    if (target == null) {
+        stopHeartbeat();
+        return;
+    }
+
+    if (activeHeartbeat == target && target.isRunning()) {
+        return;
+    }
+
+    stopHeartbeat();
+
+    activeHeartbeat = target;
+    activeHeartbeat.setFramePosition(0);
+    setVolume(activeHeartbeat, volume);
+    activeHeartbeat.loop(Clip.LOOP_CONTINUOUSLY);
 }
+
+public static synchronized void stopHeartbeat() {
+    if (activeHeartbeat != null) {
+        activeHeartbeat.stop();
+        activeHeartbeat.setFramePosition(0);
+        activeHeartbeat = null;
+    }
+}
+    public static synchronized void playZombieDamage() {
+
+        if (zombieDamage == null) {
+            zombieDamage = load("assets/audio/zombie_damage.wav");
+        }
+
+        if (zombieDamage == null) return;
+
+        setVolume(zombieDamage, DAMAGE_VOLUME);
+
+        zombieDamage.stop();
+        zombieDamage.setFramePosition(0);
+        zombieDamage.start();
+    }
 
     public static synchronized void stopZombieSounds() {
 
@@ -189,42 +313,62 @@ public static synchronized void playZombieDamage() {
     }
 
     public static synchronized void playGameplayMusic() {
-
-    if (gameplay == null) {
-        gameplay = load("assets/audio/level1_background.wav");
+    playGameplayMusic(1);
     }
 
-    if (gameplay == null || gameplay.isRunning()) return;
+    public static synchronized void playGameplayMusic(int level) {
 
-    if (gameplayFade != null) {
-        gameplayFade.stop();
-    }
+       if (level < 1 || level > 5) return;
 
-    setVolume(gameplay, 0f);
+        if (gameplayLevel != level) {
 
-    gameplay.loop(Clip.LOOP_CONTINUOUSLY);
+            stopGameplayMusic();
 
-    long fadeStart = System.currentTimeMillis();
+            if (gameplay != null) {
+                gameplay.close();
+                gameplay = null;
+            }
 
-    gameplayFade = new javax.swing.Timer(40, e -> {
-
-        float progress = Math.min(
-            1f,
-            (System.currentTimeMillis() - fadeStart) / 2000f
-        );
-
-        setVolume(gameplay, GAMEPLAY_VOLUME * progress);
-
-        if (progress >= 1f) {
-            ((javax.swing.Timer) e.getSource()).stop();
+            gameplayLevel = level;
         }
-    });
 
-    gameplayFade.start();
+        if (gameplay == null) {
+            gameplay = load(
+                "assets/audio/level" + level + "_background.wav"
+            );
+        }
+
+        if (gameplay == null || gameplay.isRunning()) return;
+
+        if (gameplayFade != null) {
+            gameplayFade.stop();
+        }
+
+        setVolume(gameplay, 0f);
+
+        gameplay.loop(Clip.LOOP_CONTINUOUSLY);
+
+        long fadeStart = System.currentTimeMillis();
+
+        gameplayFade = new javax.swing.Timer(40, e -> {
+
+            float progress = Math.min(
+                1f,
+                (System.currentTimeMillis() - fadeStart) / 2000f
+            );
+
+            setVolume(gameplay, GAMEPLAY_VOLUME * progress);
+
+            if (progress >= 1f) {
+                ((javax.swing.Timer) e.getSource()).stop();
+            }
+        });
+
+        gameplayFade.start();
     }
 
     public static synchronized void stopGameplayMusic() {
-    
+    stopHeartbeat();
     stopZombieSounds();
 
     if (gameplayFade != null) {
@@ -268,6 +412,23 @@ public static synchronized void playZombieDamage() {
         if (click != null) { click.stop(); click.close(); click = null; }
         if (coin != null) { coin.stop(); coin.close(); coin = null; }
         if (cinematic != null) { cinematic.stop(); cinematic.close(); cinematic = null; }
+
+        stopHeartbeat();
+
+        if (medkitSound != null) {
+            medkitSound.close();
+            medkitSound = null;
+        }
+
+        if (heartbeatLow != null) {
+            heartbeatLow.close();
+            heartbeatLow = null;
+        }
+
+        if (heartbeatCritical != null) {
+            heartbeatCritical.close();
+            heartbeatCritical = null;
+        }
     }
     public static void main(String[] args) throws Exception {
     playCinematic();

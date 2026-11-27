@@ -110,7 +110,7 @@ public final class GameplayBridge {
     scientist.restoreProgress(
         oldXp,
         oldCoins,
-        scientist.getResearchPoints()
+        scientist.getResearchPoints()   
     );
 
     scientist.collectReward(reward);

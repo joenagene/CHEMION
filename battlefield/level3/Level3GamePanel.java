@@ -2,6 +2,7 @@ package battlefield.level3;
 
 import battlefield.level1.SaveManager;
 import game.AudioManager;
+import game.HealthEffects;
 import game.GameManager;
 import game.GameplayBridge;
 import game.Reward;
@@ -117,6 +118,7 @@ public final class Level3GamePanel extends JPanel {
     private final Runnable onWin;
     private final Runnable onMenu;
     private final javax.swing.Timer timer;
+    private final HealthEffects healthEffects = new HealthEffects();
     private final Random rng = new Random(27);
     private final SpriteLoader sprites = new SpriteLoader();
     private final List<Enemy> enemies = new ArrayList<>();
@@ -363,6 +365,11 @@ public final class Level3GamePanel extends JPanel {
     public void disposeGame() {
         timer.stop();
         keys.clear();
+
+        AudioManager.stopZombieSounds();
+        AudioManager.stopHeartbeat();
+        healthEffects.reset();
+
         KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(sprintKeys);
     }
     @Override public void addNotify() {
@@ -426,7 +433,18 @@ public final class Level3GamePanel extends JPanel {
         if (paused || lab || journal || encounter || dead || won) return;
         if (medkits <= 0) { message("No medkits left."); return; }
         if (hp >= 100) { message("Health is already full."); return; }
-        medkits--; hp = GameplayBridge.useMedkit(hp, scientist);
+
+        medkits--;
+
+        double previousHp = hp;
+        hp = GameplayBridge.useMedkit(hp, scientist);
+
+        if (hp > previousHp) {
+            AudioManager.playMedkitSound();
+            healthEffects.triggerHeal();
+            AudioManager.updateHeartbeat(hp, 100);
+        }
+
         message("Medkit used. Health restored.");
     }
     private void message(String value) { notice = value; noticeTicks = 240; }
@@ -598,6 +616,16 @@ public final class Level3GamePanel extends JPanel {
     }
 
     private void updateGame() {
+
+        healthEffects.update(hp, 100);
+
+        if (paused || lab || journal || encounter || dead || won) {
+            AudioManager.stopZombieSounds();
+            AudioManager.stopHeartbeat();
+        } else {
+            AudioManager.updateHeartbeat(hp, 100);
+        }
+
         if (paused) { repaint(); return; }
         if (lab) {
             if (labTab != 3 && --labTicks <= 0) {
@@ -638,7 +666,15 @@ public final class Level3GamePanel extends JPanel {
                 try { saveProgress(); } catch (IOException e) { message("Checkpoint save failed: " + e.getMessage()); }
             }
         } else waveTimer = 0;
-        if (hp <= 0) { hp = 0; dead = true; keys.clear(); }
+        if (hp <= 0) {
+            hp = 0;
+            dead = true;
+            keys.clear();
+
+            AudioManager.stopHeartbeat();
+            AudioManager.stopZombieSounds();
+            healthEffects.reset();
+        }
         repaint();
     }
     private void updatePlayer() {
@@ -682,11 +718,16 @@ public final class Level3GamePanel extends JPanel {
             if (z.attackTicks > 0) z.attackTicks--;
             double dx = px - z.x, dy = py - z.y;
             double distance = Math.hypot(dx, dy);
+            if (distance < 900) {
+                AudioManager.playLevel3ZombieGrowl(z.type);
+            }
+
             if (distance < 450 && !seen[z.type]) {
                 seen[z.type] = true;
                 GameplayBridge.scan(3, z.type, CHEMS[RECIPES[z.type][0]]);
-                encounterType = z.type; encountered = z; encounter = true;
-                if (z.type == 3) bossAuraTicks = 36;
+               encounterType = z.type; encountered = z; encounter = true;
+                AudioManager.stopZombieSounds();
+            if (z.type == 3) bossAuraTicks = 36;
                 keys.clear();
                 message("NEW RESEARCH: " + NAMES[z.type]);
                 return;
@@ -753,6 +794,11 @@ public final class Level3GamePanel extends JPanel {
                     message("Incorrect treatment! Review the Research Journal.");
                 } else {
                     p.enemy.flash = 28;
+
+                    if (p.enemy.hp > 0) {
+                        AudioManager.playZombieDamage();
+                    }
+
                     if (p.enemy.hp <= 0) stabilize(p.enemy);
                     else message("Treatment effective. " + NAMES[p.enemy.type] + " is weakening.");
                 }
@@ -837,9 +883,18 @@ public final class Level3GamePanel extends JPanel {
         throwCooldown = 26;
     }
     private void reset() {
-        px = 132; py = 369; camera = 0; hp = 100;
-        ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0; concentrationVerified = false; dilutionVerified = false; dilutionPromptShown = false;
-        xp = 0; coins = 85; medkits = 2; equipped = 0; target = 0; batchQty = 1;
+    px = 132; py = 369; camera = 0; hp = 100;
+
+    healthEffects.reset();
+    AudioManager.stopHeartbeat();
+
+    ticks = 0; wave = 1; spawned = 0; spawnTimer = 90; waveTimer = 0;
+
+    concentrationVerified = false;
+    dilutionVerified = false;
+    dilutionPromptShown = false;
+
+    xp = 0; coins = 85; medkits = 2; equipped = 0; target = 0; batchQty = 1;
         hurtTicks = 0; throwCooldown = 0; labTicks = 0; labTab = 0;
         journalTab = 2; journalChoice = 0; encounterType = -1;
         facing = "right"; encountered = null; paused = false; lab = false; journal = false;
@@ -1256,6 +1311,11 @@ public final class Level3GamePanel extends JPanel {
         g.drawImage(factory, -(int) camera, 0, null);
         drawFactoryEffects(g);
         drawActors(g);
+
+        if (canPlay()) {
+            healthEffects.drawVignette(g, W, H);
+        }
+
         if (concentrationPending() && !paused && !lab && !journal && !encounter && !dead) {
             int x = (wave == 3 ? REACTOR_X : MIX_X) - (int) camera;
             g.setColor(GOLD); g.drawRoundRect(x - 96, 246, 192, 114, 12, 12);
@@ -1263,6 +1323,7 @@ public final class Level3GamePanel extends JPanel {
             label(g, wave == 3 ? "[E] RESTORE REACTOR SAFETY SYSTEM" : (nearMixingPanel() ? "[E] RESTORE REAGENT MIXING SYSTEM" : "OBJECTIVE: FIND MIXING PANEL IN REAGENT MIXING SECTOR"), 230, 112, 11, GOLD, true);
             if (x >= 100 && x <= W - 100) label(g, wave == 3 ? "[E] REACTOR LOCK" : "[E] MIXING PANEL", x - 65, 240, 12, GOLD, true);
         }
+
         drawHUD(g);
         if (paused) drawPauseMenu(g);
         else if (encounter) drawEncounter(g);
@@ -1517,6 +1578,16 @@ public final class Level3GamePanel extends JPanel {
         for (Defeated d : defeated) drawDefeated(g, d);
         for (Enemy z : sorted) drawEnemy(g, z);
         drawPlayer(g);
+
+        if (canPlay()) {
+            healthEffects.drawHealEffect(
+                g,
+                (int) (px - camera),
+                (int) py - 35,
+                45
+            );
+        }
+
         for (Projectile p : projectiles) {
             int x = (int) (p.x - camera), y = (int) p.y;
             g.setColor(VIAL_COLORS[p.type]);
