@@ -158,6 +158,16 @@ public final class Level4GamePanel extends JPanel {
     private int hurtTicks, throwCooldown, labTicks, labTab, journalTab = 2, journalChoice;
     private int noticeTicks, encounterType = -1, hoverControl;
     private String facing = "right";
+
+    private static final int THROW_FRAMES = 4;
+    private static final int THROW_FRAME_TICKS = 6;
+    private static final int THROW_DURATION =
+            THROW_FRAMES * THROW_FRAME_TICKS;
+
+    private int throwAnimationTicks = 0;
+    private String throwFacing = "right";
+    private Enemy pendingThrowEnemy;
+    private int pendingThrowType = -1;
     private String notice = "Lost Research Facility: trace the missing shipment records.";
     private String labNotice = "Select a zombie and examine its chemistry clue.";
     private boolean paused, lab, journal, encounter, dead, won, winNotified;
@@ -687,6 +697,15 @@ public final class Level4GamePanel extends JPanel {
         defeated.removeIf(d -> ++d.age >= SHATTER_TICKS);
         if (hurtTicks > 0) hurtTicks--;
         if (throwCooldown > 0) throwCooldown--;
+
+        if (throwAnimationTicks > 0) {
+            throwAnimationTicks--;
+
+            if (throwAnimationTicks ==
+                    THROW_DURATION - THROW_FRAME_TICKS * 2) {
+                releasePotion();
+            }
+        }
         updatePlayer();
         if (spawned < quota() && enemies.size() < activeLimit() && --spawnTimer <= 0) spawnEnemy();
         updateEnemies();
@@ -725,7 +744,7 @@ public final class Level4GamePanel extends JPanel {
         if (keys.contains(KeyEvent.VK_D) || keys.contains(KeyEvent.VK_RIGHT)) dx++;
         if (keys.contains(KeyEvent.VK_W) || keys.contains(KeyEvent.VK_UP)) dy--;
         if (keys.contains(KeyEvent.VK_S) || keys.contains(KeyEvent.VK_DOWN)) dy++;
-        if (dx != 0 || dy != 0) {
+        if (throwAnimationTicks == 0 && (dx != 0 || dy != 0)) {
             double oldX = px, oldY = py;
             double length = Math.hypot(dx, dy);
             double speed = keys.contains(KeyEvent.VK_SHIFT) ? 3.05 : 2.15;
@@ -830,7 +849,7 @@ public final class Level4GamePanel extends JPanel {
             p.t += .055;
             double t = Math.min(1, p.t);
             p.x = p.sx + (p.enemy.x - p.sx) * t;
-            p.y = p.sy + (p.enemy.y - 25 - p.sy) * t - Math.sin(Math.PI * t) * 75;
+            p.y = p.sy + (p.enemy.y - 25 - p.sy) * t - Math.sin(Math.PI * t) * Math.min(18, 6 + Math.hypot(p.enemy.x - p.sx, p.enemy.y - p.sy) * .025);
             if (p.t >= 1) {
                 it.remove();
                 if (!enemies.contains(p.enemy)) continue;
@@ -916,7 +935,7 @@ public final class Level4GamePanel extends JPanel {
     private void throwPotion() { throwPotion(null); }
 
     private void throwPotion(Enemy clicked) {
-        if (!canPlay() || throwCooldown > 0) return;
+        if (!canPlay() || throwCooldown > 0 || throwAnimationTicks > 0) return;
         if (vials[equipped] <= 0) {
             message("No " + NAMES[equipped] + " potions. Press M to craft."); return;
         }
@@ -924,12 +943,62 @@ public final class Level4GamePanel extends JPanel {
         if (targetEnemy == null) {
             message("No zombie in range. Move closer or face the zombie."); return;
         }
-        vials[equipped]--;
-        projectiles.add(new Projectile(targetEnemy, equipped,
-                px + (facing.equals("right") ? 9 : facing.equals("left") ? -9 : 0), py - 39));
+        double dx = targetEnemy.x - px;
+        double dy = targetEnemy.y - py;
+
+        facing = Math.abs(dx) > Math.abs(dy)
+                ? (dx > 0 ? "right" : "left")
+                : (dy > 0 ? "down" : "up");
+
+        throwFacing = facing;
+        throwAnimationTicks = THROW_DURATION;
+        pendingThrowEnemy = targetEnemy;
+        pendingThrowType = equipped;
         throwCooldown = 26;
     }
+    private void releasePotion() {
+        Enemy z = pendingThrowEnemy;
+        int type = pendingThrowType;
+
+        pendingThrowEnemy = null;
+        pendingThrowType = -1;
+
+        if (z == null || !enemies.contains(z) || z.hp <= 0) return;
+        if (type < 0 || vials[type] <= 0) return;
+
+        double offsetX = 0;
+        double offsetY = -27;
+
+        switch (throwFacing) {
+            case "right":
+                offsetX = 24;
+                offsetY = -29;
+                break;
+            case "left":
+                offsetX = -24;
+                offsetY = -29;
+                break;
+            case "down":
+                offsetX = 7;
+                offsetY = -26;
+                break;
+            case "up":
+                offsetX = 20;
+                offsetY = -36;
+                break;
+        }
+
+        projectiles.add(new Projectile(
+                z, type, px + offsetX, py + offsetY));
+
+        vials[type]--;
+    }
+
     private void reset() {
+        throwAnimationTicks = 0;
+        throwFacing = "right";
+        pendingThrowEnemy = null;
+        pendingThrowType = -1;
         px = 132; py = 392; camera = 0; hp = 100;
 
         healthEffects.reset();
@@ -1718,9 +1787,25 @@ public final class Level4GamePanel extends JPanel {
         // duplicate silhouettes, added trails, or hurt sprite animations.
         String moveAction = running ? "run" : "walk";
         // No death or hurt sprites: keep walk/run/throw and tint red on damage.
-        String action = throwCooldown > 14 && !dead ? "throw potion" : moveAction;
+        String action = moveAction;
         int frame = moving ? ticks / (running ? 5 : 10) : 0;
-        BufferedImage sprite = sprites.get(true, scientist, action, facing, frame);
+        String animationFacing = facing;
+
+        if (throwAnimationTicks > 0 && !dead) {
+            action = "throw_potion";
+            animationFacing = throwFacing;
+
+            frame = Math.min(
+                    THROW_FRAMES - 1,
+                    (THROW_DURATION - throwAnimationTicks)
+                            / THROW_FRAME_TICKS);
+
+            running = false;
+            moving = false;
+        }
+
+        BufferedImage sprite = sprites.get(
+                true, scientist, action, animationFacing, frame);
         boolean red = hurtTicks > 0 && hurtTicks % 8 >= 4;
         if (sprite != null) {
             drawSprite(g, red ? sprites.red(sprite) : sprite, x, y, 65, 1f, 59);

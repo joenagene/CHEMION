@@ -147,6 +147,16 @@ public class Level1GamePanel extends JPanel {
     private static final Rectangle PAUSE_SAVE_EXIT = new Rectangle(333, 277, 294, 47);
     private static final Rectangle PAUSE_EXIT_NO_SAVE = new Rectangle(333, 343, 294, 47);
     private String facing = "right";
+
+    private static final int THROW_FRAMES = 4;
+    private static final int THROW_FRAME_TICKS = 6;
+    private static final int THROW_DURATION =
+            THROW_FRAMES * THROW_FRAME_TICKS;
+
+    private int throwAnimationTicks = 0;
+    private String throwFacing = "right";
+    private Enemy pendingThrowEnemy;
+    private int pendingThrowType = -1;
     private String notice = "Stay alert. The infected are approaching.";
     private String labNotice = "Read Recipes for clues, then select ingredients.";
     private Enemy encountered;
@@ -188,7 +198,7 @@ public class Level1GamePanel extends JPanel {
         double x, y, t;
         Potion(Enemy enemy, int type, double x, double y, double distance) {
             this.enemy = enemy; this.type = type; sx = this.x = x; sy = this.y = y;
-            arc = Math.min(43, 24 + distance * .045);
+            arc = Math.min(18, 6 + distance * .025);
         }
         void move() {
             t = Math.min(1, t + .019); // deliberately slower curved throw
@@ -447,7 +457,7 @@ public class Level1GamePanel extends JPanel {
                 double arc = Double.parseDouble(fields[7]);
                 Potion shot = new Potion(enemies.get(enemyIndex), Integer.parseInt(fields[1]),
                     Double.parseDouble(fields[2]), Double.parseDouble(fields[3]),
-                    Math.max(0, (arc - 24) / .045));
+                    Math.max(0, (arc - 6) / .025));
                 shot.x = Double.parseDouble(fields[4]);
                 shot.y = Double.parseDouble(fields[5]);
                 shot.t = Double.parseDouble(fields[6]);
@@ -513,6 +523,11 @@ public class Level1GamePanel extends JPanel {
         healthEffects.reset();
         AudioManager.stopHeartbeat();
         ticks = hurtTicks = throwCooldown = xp = 0;
+
+        throwAnimationTicks = 0;
+        throwFacing = "right";
+        pendingThrowEnemy = null;
+        pendingThrowType = -1;
         coins = 10; // Starting funds so players can recover a missing essential ingredient.
         medkits = 2;
         wave = 1; spawned = 0; spawnTimer = 105; waveTimer = 0;
@@ -1000,13 +1015,23 @@ private void updateGame() {
         ticks++;
         if (hurtTicks > 0) hurtTicks--;
         if (throwCooldown > 0) throwCooldown--;
+
+        if (throwAnimationTicks > 0) {
+            throwAnimationTicks--;
+
+            if (throwAnimationTicks == THROW_DURATION
+                    - (THROW_FRAME_TICKS * 2)) {
+                releasePotion();
+            }
+        }
+
         if (noticeTicks > 0) noticeTicks--;
         double dx = 0, dy = 0;
         if (pressed.contains(KeyEvent.VK_A) || pressed.contains(KeyEvent.VK_LEFT)) dx--;
         if (pressed.contains(KeyEvent.VK_D) || pressed.contains(KeyEvent.VK_RIGHT)) dx++;
         if (pressed.contains(KeyEvent.VK_W) || pressed.contains(KeyEvent.VK_UP)) dy--;
         if (pressed.contains(KeyEvent.VK_S) || pressed.contains(KeyEvent.VK_DOWN)) dy++;
-        if (dx != 0 || dy != 0) {
+        if (throwAnimationTicks == 0 && (dx != 0 || dy != 0)) {
             double oldX = px, oldY = py;
             double len = Math.hypot(dx, dy);
             double speed = pressed.contains(KeyEvent.VK_SHIFT) ? 3.2 : 2.15;
@@ -1337,13 +1362,95 @@ private void updateGame() {
         return best;
     }
     private void throwPotion(Enemy clicked) {
-        if (!canPlay() || throwCooldown > 0) return;
-        if (vials[equipped] < 1) { message("No potion equipped. Press M to craft."); return; }
+        if (!canPlay() || throwCooldown > 0
+                || throwAnimationTicks > 0) return;
+
+        if (vials[equipped] < 1) {
+            message("No potion equipped. Press M to craft.");
+            return;
+        }
+
         Enemy z = clicked == null ? autoTarget() : clicked;
-        if (z == null) { message("No zombie in range. Move closer or face the zombie."); return; }
-        double d = Math.hypot(z.x - px, z.y - py);
-        shots.add(new Potion(z, equipped, px + (facing.equals("right") ? 9 : facing.equals("left") ? -9 : 0), py - 39, d));
-        vials[equipped]--; throwCooldown = 26;
+
+        if (z == null) {
+            message("No zombie in range. Move closer or face the zombie.");
+            return;
+        }
+
+        double dx = z.x - px;
+        double dy = z.y - py;
+        double d = Math.hypot(dx, dy);
+
+        // Face the targeted zombie.
+        facing = Math.abs(dx) > Math.abs(dy)
+                ? (dx > 0 ? "right" : "left")
+                : (dy > 0 ? "down" : "up");
+
+        // Start throwing animation.
+        throwFacing = facing;
+        throwAnimationTicks = THROW_DURATION;
+
+        // Prepare potion for release on frame 3.
+        pendingThrowEnemy = z;
+        pendingThrowType = equipped;
+
+        throwCooldown = 26;
+    }
+
+        private void releasePotion() {
+        Enemy z = pendingThrowEnemy;
+        int type = pendingThrowType;
+
+        pendingThrowEnemy = null;
+        pendingThrowType = -1;
+
+        if (z == null || !enemies.contains(z)
+                || z.dying || z.hp <= 0) return;
+
+        if (type < 0 || vials[type] <= 0) return;
+
+        double offsetX = 0;
+        double offsetY = -27;
+
+        switch (throwFacing) {
+            case "right":
+                offsetX = 24;
+                offsetY = -29;
+                break;
+
+            case "left":
+                offsetX = -24;
+                offsetY = -29;
+                break;
+
+            case "down":
+                offsetX = 7;
+                offsetY = -26;
+                break;
+
+            case "up":
+                offsetX = 20;
+                offsetY = -36;
+                break;
+        }
+
+        double startX = px + offsetX;
+        double startY = py + offsetY;
+
+        double distance = Math.hypot(
+                z.x - startX,
+                z.y - py
+        );
+
+        shots.add(new Potion(
+                z,
+                type,
+                startX,
+                startY,
+                distance
+        ));
+
+        vials[type]--;
     }
 
     private boolean hudControlsAvailable() {
@@ -1667,8 +1774,37 @@ private void updateGame() {
             pressed.contains(KeyEvent.VK_S) || pressed.contains(KeyEvent.VK_D) ||
             pressed.contains(KeyEvent.VK_UP) || pressed.contains(KeyEvent.VK_DOWN) ||
             pressed.contains(KeyEvent.VK_LEFT) || pressed.contains(KeyEvent.VK_RIGHT);
-        String action = moving && pressed.contains(KeyEvent.VK_SHIFT) ? "run" : "walk";
-        BufferedImage img = sprites.get(true, scientist, action, facing, moving ? ticks / 10 : 0);
+        String action;
+        String animationFacing;
+        int frame;
+
+        if (throwAnimationTicks > 0) {
+
+            action = "throw_potion";
+            animationFacing = throwFacing;
+
+            frame = Math.min(
+                    THROW_FRAMES - 1,
+                    (THROW_DURATION - throwAnimationTicks)
+                            / THROW_FRAME_TICKS
+            );
+
+        } else {
+
+            action = moving && pressed.contains(KeyEvent.VK_SHIFT)
+                    ? "run" : "walk";
+
+            animationFacing = facing;
+            frame = moving ? ticks / 10 : 0;
+        }
+
+        BufferedImage img = sprites.get(
+                true,
+                scientist,
+                action,
+                animationFacing,
+                frame
+        );
         boolean red = hurtTicks > 0 && (ticks / 5) % 2 == 0;
         if (img != null) drawSprite(g, img, x, y, PLAYER_H, 59, red);
         else {
