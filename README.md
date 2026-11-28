@@ -236,36 +236,53 @@ Unlike the previous levels, the Genesis Laboratory contains multiple research ch
 
 #### Entrance — Security Area
 
+<p align="center">
+  <img src="assets/readme/level5_entrance.png" width="80%">
+</p>
+
 Players must overcome the laboratory's chemical security verification before entering the restricted research chambers.
 
 #### Wave 01 — Presentation Hall
+
+<p align="center">
+  <img src="assets/readme/level5_wave1_1.png" width="32%">
+  <img src="assets/readme/level5_wave1_2.png" width="32%">
+  <img src="assets/readme/level5_wave1_3.png" width="32%">
+</p>
 
 Investigate the location of the original scientific presentation and uncover information about the individuals involved in the experiment.
 
 **Enemy:** Elite Infected
 
-#### Wave 02 — Containment Vault
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <b>Wave 02 — Containment Vault</b><br>
+      <img src="assets/readme/level5_wave2.png" width="100%"><br>
+      Explore the containment chamber and discover evidence of failed containment procedures and dangerous experimental mutations.<br>
+      <b>Enemy:</b> Biohazard Guardian
+    </td>
+    <td align="center" width="50%">
+      <b>Wave 03 — Evolution Wing</b><br>
+      <img src="assets/readme/level5_wave3.png" width="100%"><br>
+      Uncover restricted research records that reveal the progression of the infection and the experiments responsible for its evolution.<br>
+      <b>Enemy:</b> Alpha Mutant
+    </td>
+  </tr>
+</table>
 
-Explore the containment chamber and discover evidence of failed containment procedures and dangerous experimental mutations.
+<h4 align="center">🔒 Wave 04 — Final Battle</h4>
 
-**Enemy:** Biohazard Guardian
-
-#### Wave 03 — Evolution Wing
-
-Uncover restricted research records that reveal the progression of the infection and the experiments responsible for its evolution.
-
-**Enemy:** Alpha Mutant
-
-#### Final Battle — Origin Vault
-
-The final confrontation takes place in the heart of the Genesis Laboratory. Players must apply their accumulated scientific knowledge and develop specialized treatments to confront the source of the infection.
+<p align="center">
+  <i>The final battle remains a surprise. Discover what awaits you at the heart of the Genesis Laboratory.</i>
+</p>
 
 Throughout the Genesis Laboratory, players balance chemical equations to complete security verifications, recover classified research records, and gain access to restricted areas.
 
 | Classification | Details |
 |---|---|
 | Difficulty | Final |
-| Final Boss | Patient Zero: The Origin |
+| Final Boss | 🔒 Classified |
 | Chemistry Challenges | Chemical Formulation, Potion Crafting, and Balancing Chemical Equations |
 
 <p align="center">

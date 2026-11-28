@@ -1,12 +1,10 @@
 package battlefield.level5;
 
+import battlefield.level1.SaveManager;
 import game.AudioManager;
-import game.HealthEffects;
-
-import battlefield.level1.SaveManager;
-import battlefield.level1.SaveManager;
 import game.GameManager;
 import game.GameplayBridge;
+import game.HealthEffects;
 import game.Reward;
 import java.awt.*;
 import java.awt.event.*;
@@ -816,7 +814,7 @@ public final class Level5GamePanel extends JPanel {
         if (throwAnimationTicks == 0 && (dx != 0 || dy != 0)) {
             double oldX = px, oldY = py;
             double length = Math.hypot(dx, dy);
-            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 3.50 : 2.50;
+            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 3.05 : 2.65;
             double[] next = moveAroundEquipment(px, py, dx / length * speed, dy / length * speed, ACTOR_RADIUS);
             px = next[0]; py = next[1];
             GameplayBridge.recordMovement(oldX, oldY, px, py);

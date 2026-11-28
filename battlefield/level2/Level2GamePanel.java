@@ -500,7 +500,7 @@ public final class Level2GamePanel extends JPanel {
         if (throwAnimationTicks == 0 && (dx != 0 || dy != 0)) {
             double oldX = px, oldY = py;
             double length = Math.hypot(dx, dy);
-            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 2.75 : 2.15; 
+            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 3.05 : 2.15; 
             px = clamp(px + dx / length * speed, 34, WORLD - 35);
             py = clamp(py + dy / length * speed, FLOOR_TOP + 60, FLOOR_BOTTOM - 15);
             GameplayBridge.recordMovement(oldX, oldY, px, py);
