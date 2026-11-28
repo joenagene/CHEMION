@@ -2,9 +2,9 @@ package battlefield.level2;
 
 import battlefield.level1.SaveManager;
 import game.AudioManager;
-import game.HealthEffects;
 import game.GameManager;
 import game.GameplayBridge;
+import game.HealthEffects;
 import game.Reward;
 import java.awt.*;
 import java.awt.event.*;
@@ -17,17 +17,10 @@ import java.util.List;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 
-/**
- * CHEMION Level 2 - Contaminated Hospital.
- * A playable side-scrolling level with four infected types, chemistry lab,
- * research journal, shop, save/resume, and boss unlock progression.
- * Existing character and zombie PNG sprites are used when present; all
- * environments and missing-sprite fallbacks are drawn in Java.
- */
+// CHEMION Level 2 - Contaminated Hospital.//
 public final class Level2GamePanel extends JPanel {
     private static final int W = 960, H = 540, WORLD = 3160;
     private static final int FLOOR_TOP = 216, FLOOR_BOTTOM = 448;
-    // Shared visual language with Level 1: identical HUD, menu, and card colors.
     private static final Color WHITE = new Color(242, 234, 255);
     private static final Color PURPLE = new Color(204, 170, 251);
     private static final Color MUTED = new Color(184, 170, 204);
@@ -49,7 +42,6 @@ public final class Level2GamePanel extends JPanel {
         "Acid Zombie", "Patient Zero", "Toxic Zombie", "Plague Doctor"
     };
     private static final String[] SHORT_NAMES = {"ACID", "CASE ZERO", "TOXIC", "DOCTOR"};
-    // Same four-slot dimensions and placement as Level 1.
     private static final int HOTBAR_X = 22, HOTBAR_Y = 468, HOTBAR_SLOT_W = 126;
     private static final int HOTBAR_SLOT_H = 51, HOTBAR_GAP = 6;
     private static final String[] CHEMS = {
@@ -156,7 +148,6 @@ public final class Level2GamePanel extends JPanel {
         final int type;
         double x, y;
         int hp, cooldown, flash, slowed;
-        // Slight individual variation, saved so Continue Game preserves each enemy's pace.
         double speedFactor = 1.0;
         String face = "left";
         Enemy(int type, double x, double y) {
@@ -164,8 +155,7 @@ public final class Level2GamePanel extends JPanel {
             this.hp = type == 3 ? 4 : type == 0 ? 1 : 2;
         }
     }
-    // A zombie breaks into tiny pieces of its CURRENT walk/run sprite.
-    // Never loads or plays zombie death sheets.
+
     private static final class Shard {
         final BufferedImage image;
         final int localX, localY;
@@ -242,7 +232,7 @@ public final class Level2GamePanel extends JPanel {
                 hoverControl = 0; repaint();
             }
         });
-        // Never keep movement/run pressed when the game loses keyboard focus.
+      
         addFocusListener(new FocusAdapter() {
             @Override public void focusLost(FocusEvent e) { keys.clear(); }
         });
@@ -280,8 +270,7 @@ public final class Level2GamePanel extends JPanel {
         getActionMap().put("release" + key, new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { keys.remove(key); }
         });
-        // A Shift+movement key event can arrive even when Swing never delivered
-        // a standalone Shift press. Track both keys to make sprinting reliable.
+        
         String shiftedId = id + "Shift";
         getInputMap(WHEN_IN_FOCUSED_WINDOW).put(
                 KeyStroke.getKeyStroke(key, InputEvent.SHIFT_DOWN_MASK, false), shiftedId);
@@ -347,7 +336,7 @@ public final class Level2GamePanel extends JPanel {
         SwingUtilities.invokeLater(this::requestFocusInWindow);
     }
 
-    // Same per-treatment crafting countdown as Level 1.
+    
     private int craftingSeconds(int t) {
         return (t == 3 ? 60 : t == 2 ? 45 : t == 1 ? 35 : 25)
                 + GameplayBridge.craftingBonus(scientist);
@@ -451,7 +440,7 @@ public final class Level2GamePanel extends JPanel {
         AudioManager.updateHeartbeat(hp, 100);
     }
 
-    // Same overlay priority as Level 1: paused means the game really stops.
+    
     if (paused) { repaint(); return; }
 
 
@@ -463,7 +452,6 @@ public final class Level2GamePanel extends JPanel {
             repaint(); return;
         }
         if (dead || won || encounter || journal) {
-            // Let the boss finish shattering before the victory screen appears.
             if (won) defeated.removeIf(d -> ++d.age >= SHATTER_TICKS);
             repaint(); return;
         }
@@ -512,7 +500,7 @@ public final class Level2GamePanel extends JPanel {
         if (throwAnimationTicks == 0 && (dx != 0 || dy != 0)) {
             double oldX = px, oldY = py;
             double length = Math.hypot(dx, dy);
-            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 2.75 : 2.15; // Controlled sprint, not too fast
+            double speed = keys.contains(KeyEvent.VK_SHIFT) ? 2.75 : 2.15; 
             px = clamp(px + dx / length * speed, 34, WORLD - 35);
             py = clamp(py + dy / length * speed, FLOOR_TOP + 60, FLOOR_BOTTOM - 15);
             GameplayBridge.recordMovement(oldX, oldY, px, py);
@@ -574,7 +562,7 @@ public final class Level2GamePanel extends JPanel {
                     p.enemy.slowed = 80;
                     message("Incorrect treatment! Review the Research Journal.");
                 } else {
-                p.enemy.flash = 28; // red immediately on impact, including a final hit
+                p.enemy.flash = 28; 
 
                     if (p.enemy.hp > 0) {
                         AudioManager.playZombieDamage();
@@ -732,7 +720,6 @@ public final class Level2GamePanel extends JPanel {
         try { saveProgress(); } catch (IOException e) { message("Restart save failed: " + e.getMessage()); }
     }
 
-    // ---- Persistent Level 2 state; coexists with existing Level 1 save keys. ----
     public void saveProgress() throws IOException {
         Properties p = SaveManager.load();
         p.setProperty("scientist", scientist);
@@ -1022,7 +1009,7 @@ public final class Level2GamePanel extends JPanel {
         if (lab) { clickLab(x, y); repaint(); return; }
         if (journal) { clickJournal(x, y); repaint(); return; }
         if (hudControlsAvailable() && (HUD_PAUSE.contains(x, y) || HUD_EXIT.contains(x, y))) {
-            openPauseMenu(); return; // Same in-game purple menu as Level 1.
+            openPauseMenu(); return; 
         }
         for (int i = 0; i < 4; i++) {
             int slotX = HOTBAR_X + i * (HOTBAR_SLOT_W + HOTBAR_GAP);
@@ -1121,7 +1108,6 @@ public final class Level2GamePanel extends JPanel {
     }
 
     private static BufferedImage loadHospitalBackground() {
-        // Optional custom art. The level is fully playable without these files.
         String[] candidates = {
             "assets/backgrounds/level2_hospital.png",
             "assets/backgrounds/contaminated_hospital.png",
@@ -1177,7 +1163,7 @@ public final class Level2GamePanel extends JPanel {
     }
     private static void hospitalFloorProps(Graphics2D g, int x, int y, int type) {
         g.setColor(new Color(10,16,22,100)); g.fillOval(x-4,y+13,48,13);
-        if(type==0) { // fallen wheelchair, flat on the floor
+        if(type==0) { // fallen wheelchair
             g.setColor(new Color(0x18242c)); g.fillOval(x,y,18,23); g.fillOval(x+25,y+2,17,22);
             g.setColor(new Color(0x718386)); g.drawOval(x+2,y+2,13,18); g.drawOval(x+27,y+4,12,17);
             hospitalRect(g,x+12,y+3,17,16,0x526c70);
@@ -1315,7 +1301,7 @@ public final class Level2GamePanel extends JPanel {
                 || keys.contains(KeyEvent.VK_UP) || keys.contains(KeyEvent.VK_DOWN)
                 || keys.contains(KeyEvent.VK_LEFT) || keys.contains(KeyEvent.VK_RIGHT);
         boolean running = moving && keys.contains(KeyEvent.VK_SHIFT);
-        // Hurt uses normal walk/run frames, NEVER the separate hurt PNG folder.
+        // Hurt uses normal walk/run frames
         String moveAction = running ? "run" : "walk";
         String action = dead && hurtTicks == 0 ? "death" : moveAction;
         int frame = moving ? ticks / (running ? 6 : 10) : 0;
@@ -1336,13 +1322,12 @@ public final class Level2GamePanel extends JPanel {
 
         BufferedImage sprite = sprites.get(
                 true, scientist, action, animationFacing, frame);
-        // Strong red blink over the entire sprite, not a translucent red glow.
+       
         boolean red = hurtTicks > 0 && hurtTicks % 8 >= 4;
         int bob = running && (ticks / 6) % 2 == 0 ? 2 : 0;
         if (running) drawRunTrail(g, x, y);
         if (sprite != null) {
-            // Slight forward lean makes sprinting visibly different even if
-            // a character has only walk sheets and no dedicated run sheets.
+
             Graphics2D actor = (Graphics2D) g.create();
             if (running && (facing.equals("left") || facing.equals("right"))) {
                 double angle = facing.equals("right") ? .035 : -.035;
@@ -1363,7 +1348,6 @@ public final class Level2GamePanel extends JPanel {
         g.drawOval(x - 15, y - 5, 30, 9);
     }
     private void drawRunTrail(Graphics2D g, int x, int y) {
-        // Pixel speed lines + dust; no new art and no fire effects.
         int sign = facing.equals("left") ? 1 : -1;
         int pulse = ticks % 8;
         g.setColor(new Color(223, 194, 255, 215));
@@ -1380,8 +1364,7 @@ public final class Level2GamePanel extends JPanel {
         if (x < -100 || x > W + 100) return;
         g.setColor(new Color(5, 8, 15, 150));
         g.fillOval(x - (z.type == 3 ? 31 : 20), y - 7, z.type == 3 ? 62 : 40, 13);
-        // Attack is a 24-tick, one-time four-frame sequence tied to the hit cooldown.
-        // Unlike ticks/animationDelay, this starts at frame zero on every attack.
+
         boolean attacking = z.flash <= 0 && z.cooldown > 51;
         String action = attacking ? "attack" : z.type == 1 ? "run" : "walk";
         int animationDelay = z.type == 1 ? 8 : z.type == 2 ? 14 : z.type == 3 ? 13 : 11;
@@ -1397,7 +1380,6 @@ public final class Level2GamePanel extends JPanel {
         }
     }
     private BufferedImage fallbackShatterPose(Enemy z) {
-        // If an asset is missing, even the Java fallback breaks into its own pixels.
         BufferedImage fallback = new BufferedImage(190, 170, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = fallback.createGraphics();
         g.translate(95, 154);
@@ -1408,7 +1390,6 @@ public final class Level2GamePanel extends JPanel {
     private void drawDefeated(Graphics2D g, Defeated d) {
         int x = (int) (d.x - camera), y = (int) d.y;
         if (x < -140 || x > W + 140) return;
-        // Instant pixel shatter: pieces scatter outward, drop, and fade in < 0.3s.
         float opacity = Math.max(0f, 1f - d.age / (float) SHATTER_TICKS);
         Graphics2D pieces = (Graphics2D) g.create();
         pieces.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
@@ -1424,7 +1405,7 @@ public final class Level2GamePanel extends JPanel {
     private static void drawSprite(Graphics2D g, BufferedImage img, int centerX, int footY, int height, float alpha) {
         drawSprite(g, img, centerX, footY, height, alpha, height * 2);
     }
-    // Scientist sprite has the same 65px height and 59px max width as Level 1.
+   
     private static void drawSprite(Graphics2D g, BufferedImage img, int centerX, int footY,
                                    int height, float alpha, int maxWidth) {
         int width = Math.max(1, (int) Math.round(height * img.getWidth() / (double) Math.max(1, img.getHeight())));
@@ -1435,8 +1416,6 @@ public final class Level2GamePanel extends JPanel {
         g.setComposite(old);
     }
     private void drawFallbackEnemy(Graphics2D g, Enemy z, int x, int y, boolean red) {
-        // Render the whole fallback to a temporary image so the head, arms,
-        // and legs ALL turn red, not just the body.
         if (red) {
             BufferedImage image = new BufferedImage(190, 170, BufferedImage.TYPE_INT_ARGB);
             Graphics2D fg = image.createGraphics();
@@ -1474,19 +1453,19 @@ public final class Level2GamePanel extends JPanel {
         g.fillRect(x - 12, y - h + 5, 24, 22);
         g.setColor(new Color(222, 84, 107));
         g.fillRect(x - 8, y - h + 13, 5, 4); g.fillRect(x + 4, y - h + 13, 5, 4);
-        if (z.type == 0) { // Acid: green leaking residue.
+        if (z.type == 0) { // Acid
             g.setColor(new Color(102, 221, 137));
             g.fillRect(x - 17, y - h + 39, 8, 18); g.fillRect(x + 11, y - h + 49, 6, 12);
-        } else if (z.type == 1) { // Case Zero: medical patient bandage.
+        } else if (z.type == 1) { // Case Zero
             g.setColor(new Color(230, 229, 209));
             g.fillRect(x - 11, y - h + 9, 22, 6);
             g.setColor(new Color(175, 75, 103)); g.fillRect(x - 4, y - h + 10, 8, 3);
-        } else if (z.type == 2) { // Toxic: mask and chemical vapor.
+        } else if (z.type == 2) { // Toxic
             g.setColor(new Color(113, 225, 161));
             g.fillRect(x - 8, y - h + 20, 16, 9);
             g.fillRect(x + 18, y - h + 22, 8, 12);
             g.fillRect(x + 25, y - h + 14, 5, 6);
-        } else { // Plague Doctor: hat and beaked mask.
+        } else { // Plague Doctor
             g.setColor(new Color(34, 29, 43));
             g.fillRect(x - 21, y - h + 1, 42, 8);
             g.fillRect(x - 15, y - h - 8, 30, 12);
@@ -1525,13 +1504,12 @@ public final class Level2GamePanel extends JPanel {
         int total = 0; for (int n : stabilized) total += n;
         label(g, "STABILIZED  " + total, 735, 61, 11, WHITE, true);
         label(g, "MEDKITS  " + medkits, 846, 61, 10, WHITE, true);
-        // Icon-only controls occupy the top HUD gap, not the battlefield itself.
+        
         if (hudControlsAvailable()) {
             drawHudControl(g, HUD_PAUSE, true, hoverControl == 1);
             drawHudControl(g, HUD_EXIT, false, hoverControl == 2);
         }
-        // Show EVERY crafted potion type, including its individual inventory count.
-        // Selection never consumes a vial; only throwing does.
+        
         hudPanel(g, 14, 461, 539, 65);
         for (int i = 0; i < 4; i++) drawPotionSlot(g, i);
         label(g, "WASD move  |  SHIFT run  |  1-4 select  |  Q switch  |  SPACE throw  |  H heal",
@@ -1546,7 +1524,6 @@ public final class Level2GamePanel extends JPanel {
 
 
     private void drawPotionIcon(Graphics2D g, int x, int y, Color liquid, boolean available) {
-        // Pixel-style vial, drawn in Java so no extra asset is needed.
         Color glass = available ? new Color(225, 218, 244) : new Color(110, 104, 128);
         Color fill = available ? liquid : new Color(80, 75, 94);
         g.setColor(new Color(99, 75, 66)); g.fillRect(x + 7, y - 2, 11, 5); // cork
@@ -1643,7 +1620,7 @@ public final class Level2GamePanel extends JPanel {
                 recognized >= 0 ? new Color(183, 233, 166) : WHITE, true);
         label(g, "FOR: " + NAMES[recognized >= 0 ? recognized : target],
                 565, 392, 10, MUTED, false);
-        // Batch quantity. One mix can make 1, 2, 3 ... MAX potions, never a fixed cap.
+        // Batch quantity
         label(g, "QTY", 566, 422, 11, new Color(245, 207, 155), true);
         button(g, 604, 406, 35, 24, "-", new Color(65, 48, 97));
         label(g, String.valueOf(batchQty), 651, 422, 12, WHITE, true);
@@ -1956,15 +1933,12 @@ public final class Level2GamePanel extends JPanel {
         int n = 0; for (boolean value : values) if (value) n++; return n;
     }
 
-    /** Loads 1-row PNG sprite sheets; falls back to built-in pixel silhouettes. */
+   
     private static final class SpriteLoader {
         private final Map<String, BufferedImage[]> cache = new HashMap<>();
-        // Cache red-tinted frames so hurt flashing does not allocate every tick.
         private final Map<BufferedImage, BufferedImage> redCache = new IdentityHashMap<>();
         private final Set<String> missing = new HashSet<>();
 
-        // Strong solid-red damage sprite: keep the exact original silhouette,
-        // transparency and pixel edges, but never display a hurt animation.
         BufferedImage red(BufferedImage img) {
             BufferedImage result = redCache.get(img);
             if (result != null) return result;
@@ -2064,8 +2038,7 @@ public final class Level2GamePanel extends JPanel {
             if (w <= 1 || h <= 1) return new BufferedImage[] {crop(sheet)};
             if (w < h * 1.45) return new BufferedImage[] {crop(sheet)};
 
-            // Count nontransparent pixels per column. Transparent empty space
-            // between frames is a stronger signal than image width / 4.
+            
             int[] ink = new int[w];
             for (int x = 0; x < w; x++) {
                 for (int y = 0; y < h; y++) {
@@ -2075,8 +2048,7 @@ public final class Level2GamePanel extends JPanel {
             boolean[] occupied = new boolean[w];
             for (int x = 0; x < w; x++) occupied[x] = ink[x] > 0;
 
-            // Join tiny holes INSIDE a single character (e.g. between strands
-            // of hair). Larger gutters remain available as frame boundaries.
+        
             int smallGap = Math.max(2, Math.min(5, h / 35));
             int last = -1;
             for (int x = 0; x < w; x++) {
@@ -2104,8 +2076,7 @@ public final class Level2GamePanel extends JPanel {
             List<int[]> major = new ArrayList<>();
             for (int[] r : runs) if (r[1] - r[0] + 1 >= majorMin) major.add(r);
 
-            // If tiny separated components produced too many runs, group
-            // adjacent ones until the most likely 2..8 actual frame regions remain.
+
             while (major.size() > 8) {
                 int closest = 0, minGap = Integer.MAX_VALUE;
                 for (int i = 0; i < major.size() - 1; i++) {
@@ -2116,11 +2087,9 @@ public final class Level2GamePanel extends JPanel {
                 major.remove(closest + 1);
             }
 
-            // A genuinely single-frame image must never be split just because
-            // its PNG filename contains the word "walk" or "attack".
+           
             if (major.size() < 2) return new BufferedImage[] {crop(sheet)};
 
-            // Split at the transparent gutter between each detected main sprite.
             int count = major.size();
             int[] boundaries = new int[count + 1];
             boundaries[0] = 0; boundaries[count] = w;
@@ -2138,8 +2107,7 @@ public final class Level2GamePanel extends JPanel {
                 maxW = Math.max(maxW, frames[i].getWidth());
                 maxH = Math.max(maxH, frames[i].getHeight());
             }
-            // Equal-sized animation canvases keep feet anchored and prevent
-            // jitter from varying cropped frame dimensions.
+
             for (int i = 0; i < count; i++) {
                 BufferedImage normalized = new BufferedImage(maxW, maxH, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D g = normalized.createGraphics();
@@ -2151,9 +2119,7 @@ public final class Level2GamePanel extends JPanel {
         }
         private static BufferedImage[] extract(BufferedImage sheet) {
             int w = sheet.getWidth(), h = sheet.getHeight();
-            // CHEMION directional sheets are one horizontal row of FOUR equal cells.
-            // Do not guess frame boundaries from transparent gaps: connected poses,
-            // non-transparent backgrounds, or close limbs could merge all four poses.
+
             if (w < 4 || w < h * 1.5) return new BufferedImage[] {crop(sheet)};
             BufferedImage[] frames = new BufferedImage[4];
             int maxW = 1, maxH = 1;
@@ -2164,7 +2130,6 @@ public final class Level2GamePanel extends JPanel {
                 maxW = Math.max(maxW, frames[i].getWidth());
                 maxH = Math.max(maxH, frames[i].getHeight());
             }
-            // Normalize sizes and align feet, avoiding jitter between frames.
             for (int i = 0; i < frames.length; i++) {
                 BufferedImage normalized = new BufferedImage(maxW, maxH, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D g = normalized.createGraphics();

@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Fictional in-game treatment; not a real medical formula. */
 public class Potion {
     private final String name, treatmentKey, effect;
     private final int strength;

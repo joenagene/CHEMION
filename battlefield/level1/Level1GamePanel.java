@@ -1,14 +1,10 @@
 package battlefield.level1;
 
 import game.AudioManager;
-import game.HealthEffects;
-import game.GameplayBridge;
 import game.GameManager;
+import game.GameplayBridge;
+import game.HealthEffects;
 import game.Reward;
-
-import javax.swing.*;
-import javax.imageio.ImageIO;
-
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
@@ -17,6 +13,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.List;
+import javax.imageio.ImageIO;
+import javax.swing.*;
 
 public class Level1GamePanel extends JPanel {
     private static final int W = 960, H = 540, WORLD = 3200;
@@ -83,7 +81,7 @@ public class Level1GamePanel extends JPanel {
         "Ascorbic Acid + Distilled Water",
         "Sodium Bicarbonate + Sodium Citrate + Ascorbic Acid"
     };
-    // Recipe indexes refer directly to CHEMS. No string comparison = no false mismatch.
+    // Recipe indexes. No string comparison = no false mismatch.
     private static final int[][] RECIPES = {{0, 1}, {5, 1}, {4, 1}, {0, 5, 4}};
 
     private final String scientist;
@@ -137,9 +135,6 @@ public class Level1GamePanel extends JPanel {
     private int labTicks, labTab, journalTab = 2, journalChoice, noticeTicks;
     private int encounterType, target, equipped, batchQty = 1;
     private boolean encounter, lab, journal, paused, dead, won;
-    // Always-visible battlefield controls, in logical 960 x 540 coordinates.
-    // The mouse is scaled into these coordinates in the mouse listener.
-    // Compact icon-only controls in the unused space between the Wave and XP panels.
     private static final Rectangle HUD_PAUSE = new Rectangle(606, 22, 30, 30);
     private static final Rectangle HUD_EXIT = new Rectangle(651, 22, 30, 30);
     private int hoveredHudControl = 0; // 0 = none, 1 = pause, 2 = exit
@@ -201,7 +196,7 @@ public class Level1GamePanel extends JPanel {
             arc = Math.min(18, 6 + distance * .025);
         }
         void move() {
-            t = Math.min(1, t + .019); // deliberately slower curved throw
+            t = Math.min(1, t + .019); 
             double ey = enemy.y - (enemy.type == 3 ? 48 : 34);
             x = sx + (enemy.x - sx) * t;
             y = sy + (ey - sy) * t - arc * Math.sin(Math.PI * t);
@@ -212,8 +207,7 @@ public class Level1GamePanel extends JPanel {
         Rectangle button() { return new Rectangle(x + 311, y + buttonY, 96, 25); }
     }
 
-    // The selected scientist must come from Main -> Character Selection.
-    // No default character or standalone battlefield testing constructor.
+
     public Level1GamePanel(String scientist, Runnable onWin, Runnable onMenu) {
         if (scientist == null || scientist.trim().isEmpty()) {
             throw new IllegalArgumentException("A scientist must be selected in Character Selection.");
@@ -528,7 +522,7 @@ public class Level1GamePanel extends JPanel {
         throwFacing = "right";
         pendingThrowEnemy = null;
         pendingThrowType = -1;
-        coins = 10; // Starting funds so players can recover a missing essential ingredient.
+        coins = 10; // Starting funds
         medkits = 2;
         wave = 1; spawned = 0; spawnTimer = 105; waveTimer = 0;
         labTicks = labTab = journalChoice = 0; journalTab = 2;
@@ -554,7 +548,7 @@ public class Level1GamePanel extends JPanel {
     private void keys() {
         bind(KeyEvent.VK_M, "lab", () -> { if (canPlay()) openLab(); });
         bind(KeyEvent.VK_J, "journal", () -> { if (canPlay()) journal = true; });
-        // Number keys choose the corresponding visible potion slot, even when empty.
+        // Number keys 
         for (int i = 0; i < 4; i++) {
             final int slot = i;
             bind(KeyEvent.VK_1 + i, "potionSlot" + (i + 1), () -> equipPotion(slot));
@@ -579,8 +573,7 @@ public class Level1GamePanel extends JPanel {
     }
     private boolean canPlay() { return !encounter && !lab && !journal && !paused && !dead && !won; }
 
-    // ABANDONED TOWN: boarded shops, damaged apartment blocks, broken lights,
-    // closed signs, cracked asphalt and scattered debris. Same gameplay map.
+    // ABANDONED TOWN
     private void createTown() {
         town = new BufferedImage(WORLD, TOWN_HEIGHT, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = town.createGraphics();
@@ -768,13 +761,10 @@ public class Level1GamePanel extends JPanel {
         }
     }
 
-    // Visual-only detail based on the earlier abandoned-town battlefield demo.
-    // No collision, enemy, camera, combat, or lab rules are modified here.
     private void decorateBuildings(Graphics2D g) {
         Random r = new Random(10927);
         String[] signs = {"GENERAL STORE", "PHARMACY", "BAKERY", "EVACUATED", "MARKET", "CLOSED", "KEEP OUT", "TOWN HALL", "NO ENTRY"};
         for (int block = 0, x = -20; x < WORLD; block++, x += 350) {
-            // Crumbling signboard / old local shops, not an active city.
             int sx = x + 21;
             int sy = 151;
             g.setColor(new Color(20, 16, 31));
@@ -786,7 +776,6 @@ public class Level1GamePanel extends JPanel {
             g.setFont(new Font("Monospaced", Font.BOLD, 11));
             g.setColor(new Color(224, 186, 145));
             g.drawString(signs[block % signs.length], sx + 8, sy + 13);
-            // Boarded-up glass and splintered shop shutters.
             for (int i = 0; i < 2; i++) {
                 int wx = x + 193 + i * 75;
                 int wy = 143;
@@ -800,7 +789,6 @@ public class Level1GamePanel extends JPanel {
                 g.fillRect(wx + 12, wy + 1, 3, 2);
                 g.fillRect(wx + 41, wy + 21, 3, 2);
             }
-            // Zig-zag wall fractures, hanging wires and ivy.
             for (int i = 0; i < 7; i++) {
                 int cx = x + 12 + r.nextInt(320), cy = 24 + r.nextInt(153);
                 g.setColor(new Color(23, 17, 37, 150));
@@ -813,7 +801,7 @@ public class Level1GamePanel extends JPanel {
                 g.setColor(i % 3 == 0 ? new Color(72, 92, 51) : new Color(32, 62, 48));
                 g.fillRect(vx, vy, 3 + r.nextInt(7), 2 + r.nextInt(5));
             }
-            // Emergency notices and missing-person papers.
+            
             for (int i = 0; i < 3; i++) {
                 int px = x + 15 + r.nextInt(320), py = 123 + r.nextInt(43);
                 g.setColor(new Color(188, 162, 143));
@@ -940,8 +928,7 @@ public class Level1GamePanel extends JPanel {
         props.add(new Prop("barrier", 3740, 288, 112, 45));
         props.add(new Prop("fence", 4100, 236, 118, 61));
         props.add(new Prop("lamp", 3940, 218, 18, 94));
-        // Props are also solid obstacles, so the visual battlefield
-        // and player collision stay synchronized.
+       
         obstacles.clear();
         for (Prop p : props) {
             Rectangle2D b = p.bounds();
@@ -993,7 +980,7 @@ private void updateGame() {
 
     healthEffects.update(hp, 100);
 
-    // Pause takes precedence over crafting so the timer truly stops.
+    // Pause 
     if (cinematicActive || paused || lab ||
         encounter || journal || dead || won) {
 
@@ -1004,7 +991,7 @@ private void updateGame() {
         AudioManager.updateHeartbeat(hp, 100);
     }        if (paused) { repaint(); return; }
         if (lab) {
-            // Shopping does not consume the limited crafting timer.
+            
             if (labTab != 3 && --labTicks <= 0) {
                 lab = false; Arrays.fill(selected, false);
                 message("Crafting time expired. Open the lab to retry.");
@@ -1142,7 +1129,7 @@ private void updateGame() {
         repaint();
     }
     private void reward() {
-        // Every stabilized zombie awards coins: the shop must remain useful.
+        // Every stabilized zombie awards coins
         int[] initialReward = GameplayBridge.award(xp, coins, new Reward(0, 5, null, 0));
         xp = initialReward[0]; coins = initialReward[1];
         if (random.nextDouble() >= .55) {
@@ -1166,7 +1153,6 @@ private void updateGame() {
         }
     }
 
-    // Shop: coins are deducted only if the player can afford the ingredient.
     private int askQuantity(String title, int max, int initial, int price) {
         if (max < 1) return 0;
         JTextField field = new JTextField(String.valueOf(Math.min(max, Math.max(1, initial))), 10);
@@ -1226,10 +1212,7 @@ private void updateGame() {
         labNotice = "Purchased " + qty + " x " + CHEMS[index] + " for " + (qty * SHOP_PRICES[index]) + " coins.";
     }
 
-    // POTION FIX: recipes and selection are ingredient INDEXES, never strings.
-    // Detect which treatment the ingredient combination actually makes.
-    // This fixes crafting Common after Runner (and vice versa) without
-    // requiring the player to manually switch treatment tabs first.
+    
     private int detectedRecipe() {
         return GameplayBridge.detectRecipe(1, CHEMS, RECIPES, NAMES, selected);
     }
@@ -1240,7 +1223,7 @@ private void updateGame() {
         return GameplayBridge.maxBatch(1, CHEMS, RECIPES, NAMES, stock, recipe);
     }
 
-    // Use the identified recipe's ingredients for MAX and quantity controls.
+   
     private int maxBatch() {
         int detected = detectedRecipe();
         return maxBatch(detected >= 0 ? detected : target);
@@ -1281,7 +1264,7 @@ private void updateGame() {
         if (!any) { message("Encounter a zombie first."); return; }
         lab = true; labTab = 0;
         batchQty = 1;
-        Arrays.fill(selected, false); // Never carry ingredients from the previous mix.
+        Arrays.fill(selected, false); 
         labNotice = "Choose a treatment or select the ingredients for a new recipe.";
         labTicks = craftingSeconds(target) * 60;
     }
@@ -1302,8 +1285,7 @@ private void updateGame() {
             labNotice = "Quantity adjusted to " + max + " based on available ingredients.";
             return;
         }
-        // Each potion uses one of EACH ingredient in the identified recipe.
-        // No arbitrary limit on total vials; inventory is the only limit.
+        
         if (!GameplayBridge.craft(1, CHEMS, RECIPES, NAMES, stock, vials,
                 unlockedRecipes, recipe, batchQty)) {
             labNotice = "Crafting failed. Check your ingredients and quantity.";
@@ -1386,11 +1368,11 @@ private void updateGame() {
                 ? (dx > 0 ? "right" : "left")
                 : (dy > 0 ? "down" : "up");
 
-        // Start throwing animation.
+        // Start throwing 
         throwFacing = facing;
         throwAnimationTicks = THROW_DURATION;
 
-        // Prepare potion for release on frame 3.
+        
         pendingThrowEnemy = z;
         pendingThrowType = equipped;
 
@@ -1465,7 +1447,6 @@ private void updateGame() {
             AudioManager.playClick();
         }
 
-        // Pause menu must receive clicks before any underlying screen.
         if (paused) {
             if (PAUSE_RESUME.contains(x, y)) openPauseMenu();
             else if (PAUSE_SAVE_EXIT.contains(x, y)) saveAndReturnToMenu();
@@ -1540,7 +1521,6 @@ private void updateGame() {
                 }
             }
         } else if (labTab == 3) {
-            // Shop buttons correspond exactly to the ingredient cards drawn below.
             for (int i = 0; i < CHEMS.length; i++) {
                 int cardX = 210 + (i % 2) * 350;
                 int cardY = 151 + (i / 2) * 81;
@@ -1617,7 +1597,6 @@ private void updateGame() {
             healthEffects.drawVignette(g, W, H);
         }
 
-        // Targeting remains automatic; no green bar or target indicator above zombies.
         drawHUD(g);
         if (paused) drawPauseMenu(g);
         else if (encounter) drawEncounter(g);
@@ -1857,7 +1836,7 @@ private void updateGame() {
                 z.deathTicks / DEATH_FRAME_TICKS
             );
 
-            // LEFT sprite sheet has reversed frame order
+            
             if (z.face.equals("left")) {
                 frame = DEATH_FRAMES - 1 - frame;
             }
@@ -1932,7 +1911,7 @@ private void updateGame() {
             g.setColor(new Color(220, 91, 107));
             g.fillRect(x - 8, y - height + 12, 4, 3); g.fillRect(x + 4, y - height + 12, 4, 3);
         }
-        // No floating HP bar above zombies (requested).
+        
     }
     private void drawPotion(Graphics2D g, Potion p) {
         int x = (int) (p.x - camera), y = (int) p.y;
@@ -1994,7 +1973,7 @@ private void updateGame() {
             label(g, fit(g, notice, 502, 11), 231, 435, 11, new Color(245, 207, 155), true);
         }
     }
-    // Compact 30x30 pixel-style pause/exit controls, centered in the top HUD gap.
+    
     private void drawHudControl(Graphics2D g, Rectangle r, boolean pauseIcon, boolean hover) {
         Graphics2D b = (Graphics2D) g.create();
         b.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
@@ -2058,7 +2037,6 @@ private void updateGame() {
     }
 
     private void drawPotionIcon(Graphics2D g, int x, int y, Color liquid, boolean available) {
-        // Pixel-style vial, drawn in Java so no extra asset is needed.
         Color glass = available ? new Color(225, 218, 244) : new Color(110, 104, 128);
         Color fill = available ? liquid : new Color(80, 75, 94);
         g.setColor(new Color(99, 75, 66)); g.fillRect(x + 7, y - 2, 11, 5); // cork
@@ -2406,7 +2384,6 @@ private void updateGame() {
                 String base = norm(f.getName().replaceFirst("(?i)\\.png$", ""));
                 if (!base.endsWith(d) && !base.endsWith(alt)) continue;
                 String parent = norm(f.getParentFile().getName());
-                // Don't accidentally use an unrelated animation as the requested action.
                 if (!base.contains(a) && !parent.equals(a) && !(action.equals("crawl") && parent.equals("walk"))) continue;
                 int score = (base.contains(n) ? 10 : 0) + (base.contains(a) ? 20 : 0) +
                         (parent.equals(a) ? 7 : 0) + (base.endsWith(d) ? 3 : 0);
@@ -2432,17 +2409,13 @@ private void updateGame() {
                 else if (f.getName().toLowerCase(Locale.ROOT).endsWith(".png")) out.add(f);
             }
         }
-        // Source sprite sheets do NOT all have four frames: some have FIVE.
-        // Cutting a 5-frame sheet into 4 equal pieces draws the next character's
-        // hair/limbs beside the current sprite. Detect real transparent gutters.
-        // Also support a single-frame PNG without slicing it into quarters.
+    
         private static BufferedImage[] extract(BufferedImage sheet) {
             int w = sheet.getWidth(), h = sheet.getHeight();
             if (w <= 1 || h <= 1) return new BufferedImage[] {crop(sheet)};
             if (w < h * 1.45) return new BufferedImage[] {crop(sheet)};
 
-            // Count nontransparent pixels per column. Transparent empty space
-            // between frames is a stronger signal than image width / 4.
+            
             int[] ink = new int[w];
             for (int x = 0; x < w; x++) {
                 for (int y = 0; y < h; y++) {
@@ -2452,8 +2425,7 @@ private void updateGame() {
             boolean[] occupied = new boolean[w];
             for (int x = 0; x < w; x++) occupied[x] = ink[x] > 0;
 
-            // Join tiny holes INSIDE a single character (e.g. between strands
-            // of hair). Larger gutters remain available as frame boundaries.
+            
             int smallGap = Math.max(2, Math.min(5, h / 35));
             int last = -1;
             for (int x = 0; x < w; x++) {
@@ -2481,8 +2453,7 @@ private void updateGame() {
             List<int[]> major = new ArrayList<>();
             for (int[] r : runs) if (r[1] - r[0] + 1 >= majorMin) major.add(r);
 
-            // If tiny separated components produced too many runs, group
-            // adjacent ones until the most likely 2..8 actual frame regions remain.
+            
             while (major.size() > 8) {
                 int closest = 0, minGap = Integer.MAX_VALUE;
                 for (int i = 0; i < major.size() - 1; i++) {
@@ -2493,11 +2464,11 @@ private void updateGame() {
                 major.remove(closest + 1);
             }
 
-            // A genuinely single-frame image must never be split just because
-            // its PNG filename contains the word "walk" or "attack".
+         
+          
             if (major.size() < 2) return new BufferedImage[] {crop(sheet)};
 
-            // Split at the transparent gutter between each detected main sprite.
+           
             int count = major.size();
             int[] boundaries = new int[count + 1];
             boundaries[0] = 0; boundaries[count] = w;
@@ -2515,8 +2486,7 @@ private void updateGame() {
                 maxW = Math.max(maxW, frames[i].getWidth());
                 maxH = Math.max(maxH, frames[i].getHeight());
             }
-            // Equal-sized animation canvases keep feet anchored and prevent
-            // jitter from varying cropped frame dimensions.
+            
             for (int i = 0; i < count; i++) {
                 BufferedImage normalized = new BufferedImage(maxW, maxH, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D g = normalized.createGraphics();
@@ -2559,8 +2529,7 @@ private void updateGame() {
             cache.put(img, result); return result;
         }
     }
-    // Running this file launches the full game, never a standalone test battlefield.
-    // Main is in the default package, so a packaged class calls it by reflection.
+   
     public static void main(String[] args) {
         try {
             Class<?> mainMenu = Class.forName("Main");

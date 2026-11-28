@@ -7,11 +7,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Adapter from the existing Level 1/2 Swing arrays to the proposed OOP models.
- * Keeps the approved UI, save-file keys, and combat pacing unchanged.
- * The real validation, crafting, and treatment rules run in domain classes.
- */
 public final class GameplayBridge {
     private GameplayBridge() { }
 

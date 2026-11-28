@@ -8,7 +8,6 @@ import java.io.File;
 import javax.sound.sampled.*;
 import javax.swing.AbstractButton;
 
-/** One ambient soundtrack across narration, dialogues and Levels 1-3. */
 public final class AudioManager {
     private static Clip ambient, click, coin, cinematic, gameplay;
 

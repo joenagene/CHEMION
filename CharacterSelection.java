@@ -94,7 +94,6 @@ public class CharacterSelection extends JPanel {
 
     private final Timer animationTimer;
 
-    // DARK OVERLAY
     private final JPanel startOverlay = new JPanel(null) {
         @Override
         protected void paintComponent(Graphics g) {

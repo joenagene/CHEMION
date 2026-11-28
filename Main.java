@@ -44,7 +44,6 @@
         private boolean endingShown;
         private OutbreakIntro currentIntro;
         private OutbreakIntro.DialoguePanel currentDialogue;
-        // Level 2 has its own cinematic intro and conversation, separate from Level 1.
         private OutbreakIntro2 currentIntro2;
         private OutbreakIntro2.DialoguePanel currentLevel2Dialogue;
         private OutbreakIntro3 currentIntro3;
@@ -444,14 +443,11 @@
     }
 
         // START GAME -> INTRO -> CONVERSATION -> ACTUAL LEVEL 1
-        // CharacterSelection sends the selected character index (0 to 4).
         private static final String[] SCIENTIST_SPRITE_KEYS = {
             "sebastian", "dutch", "nicole", "gene", "elena"
         };
 
-        // A newly initialized Level 1 is auto-saved before the player moves.
-        // Do not mistake that empty checkpoint for gameplay progress.
-        // Still protect actual activity and any unlocked/completed levels.
+
         private static boolean hasMeaningfulSavedProgress() {
             Properties p = SaveManager.load();
             if ("true".equals(p.getProperty("level.1.completed"))
@@ -477,7 +473,6 @@
                     return true;
                 }
             } catch (NumberFormatException ex) {
-                // An unreadable save should not be silently discarded.
                 return true;
             }
             return false;
@@ -488,8 +483,6 @@
                 return;
             }
 
-            // "Explore" on the level carousel replays Level 1 without deleting unlocks.
-            // "New Game" is a fresh run and asks before replacing existing progress.
             if (!exploreFromLevelSelection && hasMeaningfulSavedProgress()) {
                 int choice = JOptionPane.showConfirmDialog(this,
                     "Start a NEW game? This will replace your saved run and reset all level unlocks.",
@@ -517,7 +510,6 @@
             endingShown = false;
             level3EndingShown = false;
 
-            // Clean up any previous run without modifying other screens.
             if (currentIntro != null) {
                 currentIntro.stop();
                 screens.remove(currentIntro);
@@ -535,12 +527,9 @@
             clearLevel2Screens();
             clearLevel3Screens();
 
-            // Preserve the original outbreak story and scientist conversation.
             showNarration(OutbreakIntro.opening(this::showScientistConversation));
         }
 
-        // Create the game ONLY AFTER the intro and dialogue are complete.
-        // Continue Game bypasses the intro and restores the saved battle.
         private void enterLevel1() {
 
         AudioManager.setAmbientEnabled(false);
@@ -588,7 +577,6 @@
                 currentLevel1.setCinematicActive(true);
             }
 
-            // Ctrl+M also opens the pause menu, rather than bypassing saving.
             currentLevel1.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
                 KeyStroke.getKeyStroke(KeyEvent.VK_M, InputEvent.CTRL_DOWN_MASK),
                 "level1PauseMenu"
@@ -664,8 +652,6 @@
                     showScreen("CharacterSelection");
                 }
             } else if (level == 2) {
-                // Resume an unfinished hospital run without repeating the intro.
-                // Otherwise start the mysterious Level 2 narration and conversation.
                 int savedIndex = findSavedScientistIndex();
                 if (savedIndex >= 0) selectedScientistIndex = savedIndex;
                 if (hasSavedLevel2()) enterLevel2(true);
@@ -673,7 +659,6 @@
             } else if (level == 3) {
                 int savedIndex = findSavedScientistIndex();
                 if (savedIndex >= 0) selectedScientistIndex = savedIndex;
-                // Resume unfinished factory gameplay; otherwise play the intro.
                 if (hasSavedLevel3()) enterLevel3(true);
                 else startLevel3Intro();
             } else if (level == 4) {
@@ -726,7 +711,6 @@
                 return;
             }
             if (currentLevel2 != null) {
-                // Use the existing purple Game Menu; never stack a white dialog on it.
                 currentLevel2.openPauseMenu();
                 showScreen("Level2");
                 return;
@@ -766,8 +750,6 @@
             dispose();
         }
 
-        // Pass the selected scientist's actual sprite folder to the Level 1 panel.
-        // Supports common folder names like 'nicole', 'dr_nicole', 'dr. nicole'.
         private String resolveScientistSpriteKey(int index) {
             String key = SCIENTIST_SPRITE_KEYS[index];
             File characters = new File("assets/characters");
@@ -885,7 +867,6 @@
         }
 
         // LEVEL 1 BOSS DEFEAT ENDING
-        // Finish the original Level 1 story and unlock scene BEFORE Level 2's intro.
         public void showLevel1Ending() {
             if (endingShown) return;
             endingShown = true;
@@ -899,14 +880,12 @@
         }
 
         // LEVEL 2: black-screen mystery narration -> scientist/Lab Control dialogue.
-        // This also runs when the player selects unlocked Level 2 in Continue Game.
         private void startLevel2Intro() {
             if (SaveManager.highestUnlockedLevel() < 2) {
                 showLevelSelection();
                 return;
             }
 
-            // Level 2 must use the same scientist as the saved Level 1 run.
             int savedIndex = findSavedScientistIndex();
             if (savedIndex >= 0) selectedScientistIndex = savedIndex;
 
@@ -957,8 +936,6 @@
             });
         }
 
-        // The Level 2 battlefield uses the same scientist as Level 1 and has
-        // its own enemies, map, lab, research journal and persistent checkpoints.
         private static boolean hasSavedLevel2() {
             Properties p = SaveManager.load();
             return "true".equals(p.getProperty("level2.started"))
@@ -1017,7 +994,6 @@
             });
         }
 
-        // Plague Doctor defeat -> ending conversation -> Level 3 unlock narration.
         private void showLevel2Ending() {
             if (level2EndingShown) return;
             level2EndingShown = true;

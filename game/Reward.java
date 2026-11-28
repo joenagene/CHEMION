@@ -1,6 +1,5 @@
 package game;
 
-/** Immutable reward for rescue/stabilization. */
 public final class Reward {
     private final int xp, coins;
     private final String item;

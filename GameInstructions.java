@@ -117,7 +117,6 @@ public class GameInstructions extends JPanel {
 
         StyledDocument doc = instructions.getStyledDocument();
 
-        // CENTER ALIGNMENT AND LINE SPACING
         SimpleAttributeSet center = new SimpleAttributeSet();
 
         StyleConstants.setAlignment(
@@ -187,7 +186,6 @@ public class GameInstructions extends JPanel {
             @Override
             protected void paintTrack(
                     Graphics g, JComponent c, Rectangle r) {
-                // INVISIBLE TRACK
             }
 
             @Override
@@ -353,16 +351,13 @@ public class GameInstructions extends JPanel {
             } else {
                 ((Timer) e.getSource()).stop();
 
-                // STOP SOUND WHEN TYPING FINISHES
                 stopTypingSound();
             }
         });
 
-        // BACK BUTTON ACTION
         back.addActionListener(e -> {
             typingTimer.stop();
 
-            // STOP TYPING SOUND
             stopTypingSound();
 
             main.showScreen("MainMenu");
@@ -377,7 +372,6 @@ public class GameInstructions extends JPanel {
         });
     }
 
-    // PLAY TYPING SOUND CONTINUOUSLY
     private void playTypingSound() {
         if (typingSound != null && typingSound.isOpen()) {
             typingSound.stop();
@@ -386,14 +380,12 @@ public class GameInstructions extends JPanel {
         }
     }
 
-    // STOP TYPING SOUND
     private void stopTypingSound() {
         if (typingSound != null && typingSound.isOpen()) {
             typingSound.stop();
         }
     }
 
-    // FONT SIZE
     private float getNormalFontSize() {
         double scaleX = getWidth() / (double) IMAGE_WIDTH;
         double scaleY = getHeight() / (double) IMAGE_HEIGHT;
@@ -402,12 +394,10 @@ public class GameInstructions extends JPanel {
         return (float) Math.max(6, 19 * scale);
     }
 
-    // FONT SIZE
     private float getSpecialFontSize() {
         return getNormalFontSize() + 2f;
     }
 
-    // CUT-CORNER SHAPE
     private static Polygon createShape(
             int x, int y, int w, int h, int cut) {
 
@@ -436,7 +426,6 @@ public class GameInstructions extends JPanel {
         return new Polygon(xs, ys, 8);
     }
 
-    // PIXEL BUTTON WITH PURPLE HOVER GLOW
     private static class PixelButton extends JButton {
 
         private static final int GLOW_MARGIN = 3;
@@ -575,7 +564,6 @@ public class GameInstructions extends JPanel {
         double scaleY = height / (double) IMAGE_HEIGHT;
         double scale = Math.min(scaleX, scaleY);
 
-        // TEXT BOX POSITION AND SIZE
         int boxWidth = (int) (1050 * scaleX);
         int boxHeight = (int) (600 * scaleY);
 
@@ -589,7 +577,6 @@ public class GameInstructions extends JPanel {
             boxHeight
         );
 
-        // NORMAL FONT
         float fontSize = getNormalFontSize();
 
         instructions.setFont(
@@ -654,7 +641,6 @@ public class GameInstructions extends JPanel {
             }
         }
 
-        // TEXT BOX PADDING
         int padding = Math.max(12, (int) (45 * scale));
 
         textBox.setBorder(
@@ -666,7 +652,6 @@ public class GameInstructions extends JPanel {
             )
         );
 
-        // BACK BUTTON
         int buttonWidth = (int) (550 * scaleX);
         int buttonHeight = (int) (65 * scaleY);
 
@@ -694,7 +679,6 @@ public class GameInstructions extends JPanel {
         repaint();
     }
 
-    // BACKGROUND
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -711,11 +695,9 @@ public class GameInstructions extends JPanel {
         }
     }
 
-    // TYPEWRITER EFFECT
     public void startTyping() {
         typingTimer.stop();
 
-        // STOP PREVIOUS SOUND
         stopTypingSound();
 
         instructions.setText("");
@@ -742,13 +724,11 @@ public class GameInstructions extends JPanel {
             false
         );
 
-        // START TYPING SOUND
         playTypingSound();
 
         typingTimer.start();
     }
 
-    // STOP TYPEWRITER EFFECT
     public void stopTyping() {
         typingTimer.stop();
         stopTypingSound();

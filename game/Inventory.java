@@ -4,7 +4,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Proposal: items, capacity; addItem(), removeItem(), useItem(). */
+
+//items, capacity; addItem(), removeItem(), useItem().
 public class Inventory {
     private final Map<String, Integer> items = new LinkedHashMap<>();
     private final int capacity;

@@ -6,7 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Proposal: levelNumber, map, objectives, enemies, unlocked. */
+/** levelNumber, map, objectives, enemies, unlocked. */
 public class GameLevel {
     private final int levelNumber;
     private final String map;

@@ -1,10 +1,8 @@
 package game;
 
-/** Scientist inherits Character; encapsulates XP, coins, research points. */
 public class Scientist extends Character {
     private final String specialty;
     private int experience, coins, researchPoints;
-
     public Scientist(String name, String specialty) {
         super(name);
         this.specialty = Inventory.requireName(specialty);

@@ -17,17 +17,10 @@ import java.util.List;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 
-/**
- * CHEMION Level 3 - Toxic Chemical Factory.
- * A playable side-scrolling level with four infected types, chemistry lab,
- * research journal, shop, save/resume, and boss unlock progression.
- * Existing character and zombie PNG sprites are used when present; all
- * environments and missing-sprite fallbacks are drawn in Java.
- */
+//CHEMION Level 3 - Toxic Chemical Factory.
 public final class Level3GamePanel extends JPanel {
     private static final int W = 960, H = 540, WORLD = 3160;
     private static final int FLOOR_TOP = 216, FLOOR_BOTTOM = 448;
-    // Shared visual language with Level 1: identical HUD, menu, and card colors.
     private static final Color WHITE = new Color(242, 234, 255);
     private static final Color PURPLE = new Color(204, 170, 251);
     private static final Color MUTED = new Color(184, 170, 204);
@@ -41,20 +34,16 @@ public final class Level3GamePanel extends JPanel {
     private static final String[] ENEMY_IDS = {
         "toxic_brute", "venom_spitter", "explosive_zombie", "chemical_abomination"
     };
-    // Per-zombie movement speeds (pixels per 16ms tick). No wave-based speed increase.
+     
     // Brute: slow heavy melee; Spitter: ranged; Explosive: fast charge; Abomination: boss.
     private static final double[] ENEMY_BASE_SPEED = {0.39, 0.60, 0.82, 0.44};
-    private static final int SHATTER_TICKS = 17; // 272 ms at 60 FPS; no zombie death sprites
+    private static final int SHATTER_TICKS = 17; 
     private static final String[] NAMES = {
         "Toxic Brute", "Venom Spitter", "Explosive Zombie", "Chemical Abomination"
     };
     private static final String[] SHORT_NAMES = {"BRUTE", "SPITTER", "VOLATILE", "ABOMIN."};
-    // Same four-slot dimensions and placement as Level 1.
     private static final int HOTBAR_X = 22, HOTBAR_Y = 468, HOTBAR_SLOT_W = 126;
     private static final int HOTBAR_SLOT_H = 51, HOTBAR_GAP = 6;
-    // The four recipes require exactly 2, 3, 3 and 4 ingredients.
-    // These are fictional in-game formulations inspired by chemistry concepts;
-    // they are NOT real medicines, chemical mixing instructions or antidotes.
     private static final String[] CHEMS = {
         "Sodium Bicarbonate", "Distilled Water", "Activated Carbon", "Zeolite",
         "Sodium Thiosulfate", "Silica Gel", "Calcium Carbonate", "Potassium Iodide"
@@ -127,8 +116,7 @@ public final class Level3GamePanel extends JPanel {
     private int bossAuraTicks;
     private final List<Defeated> defeated = new ArrayList<>();
     private final Set<Integer> keys = new HashSet<>();
-    // Track Shift directly, including Shift+WASD events on different Java runtimes.
-    // This dispatcher does not consume keys or change any menu/lab shortcuts.
+
     private final KeyEventDispatcher sprintKeys = event -> {
         if (!isShowing() || !isFocusOwner()) return false;
         if (event.getID() == KeyEvent.KEY_PRESSED
@@ -181,7 +169,6 @@ public final class Level3GamePanel extends JPanel {
         final int type;
         double x, y;
         int hp, cooldown, flash, slowed, charge, attackTicks;
-        // Slight individual variation, saved so Continue Game preserves each enemy's pace.
         double speedFactor = 1.0;
         String face = "left";
         Enemy(int type, double x, double y) {
@@ -189,8 +176,6 @@ public final class Level3GamePanel extends JPanel {
             this.hp = type == 3 ? 5 : type == 0 ? 1 : 2;
         }
     }
-    // A zombie breaks into tiny pieces of its CURRENT walk/run sprite.
-    // Never loads or plays zombie death sheets.
     private static final class Shard {
         final BufferedImage image;
         final int localX, localY;
@@ -249,7 +234,7 @@ public final class Level3GamePanel extends JPanel {
         }
     }
 
-    // Dodgeable factory projectiles; never use a death or hurt sprite.
+ 
     private static final class EnemyShot {
         final int type;
         double x, y, vx, vy;
@@ -278,7 +263,7 @@ public final class Level3GamePanel extends JPanel {
                 hoverControl = 0; repaint();
             }
         });
-        // Never keep movement/run pressed when the game loses keyboard focus.
+    
         addFocusListener(new FocusAdapter() {
             @Override public void focusLost(FocusEvent e) { keys.clear(); }
         });
@@ -317,8 +302,7 @@ public final class Level3GamePanel extends JPanel {
         getActionMap().put("release" + key, new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { keys.remove(key); }
         });
-        // A Shift+movement key event can arrive even when Swing never delivered
-        // a standalone Shift press. Track both keys to make sprinting reliable.
+       
         String shiftedId = id + "Shift";
         getInputMap(WHEN_IN_FOCUSED_WINDOW).put(
                 KeyStroke.getKeyStroke(key, InputEvent.SHIFT_DOWN_MASK, false), shiftedId);
@@ -387,7 +371,6 @@ public final class Level3GamePanel extends JPanel {
         SwingUtilities.invokeLater(this::requestFocusInWindow);
     }
 
-    // Same per-treatment crafting countdown as Level 1.
     private int craftingSeconds(int t) {
         return (t == 3 ? 60 : t == 2 ? 45 : t == 1 ? 35 : 25)
                 + GameplayBridge.craftingBonus(scientist);
@@ -761,7 +744,7 @@ public final class Level3GamePanel extends JPanel {
                 }
                 continue;
             }
-            // Spitter and boss fire dodgeable ranged attacks, not contact-only hits.
+
             if ((z.type == 1 || z.type == 3) && distance < (z.type == 3 ? 270 : 255)
                     && z.cooldown == 0 && distance > 55) {
                 fireEnemyShot(z, z.type == 3 ? 3.4 : 3.0);
@@ -829,7 +812,6 @@ public final class Level3GamePanel extends JPanel {
         BufferedImage pose = sprites.get(false, ENEMY_IDS[z.type],
                 z.type == 2 ? "run" : "walk", z.face, ticks / 9);
         if (pose == null) pose = fallbackShatterPose(z);
-        // Final hit flashes RED, then the original walking pose shatters.
         defeated.add(new Defeated(z, sprites.red(pose), rng));
         stabilized[z.type]++;
         Reward earned = GameplayBridge.rewards(3, z.type);
@@ -977,7 +959,6 @@ public final class Level3GamePanel extends JPanel {
         try { saveProgress(); } catch (IOException e) { message("Restart save failed: " + e.getMessage()); }
     }
 
-    // ---- Persistent Level 3 state; coexists with Levels 1 and 2. ----
     public void saveProgress() throws IOException {
         Properties p = SaveManager.load();
         p.setProperty("scientist", scientist);
@@ -1048,7 +1029,6 @@ public final class Level3GamePanel extends JPanel {
             String enemyData = p.getProperty("level3.enemies", "");
             if (!enemyData.isEmpty()) for (String line : enemyData.split(";")) {
                 String[] a = line.split(",", -1);
-                // Existing 8-field save data still loads; new saves add speedFactor.
                 if (a.length != 8 && a.length != 9 && a.length != 11)
                     throw new IllegalArgumentException("Bad enemy data");
                 int type = Integer.parseInt(a[0]);
@@ -1110,7 +1090,6 @@ public final class Level3GamePanel extends JPanel {
             enemies.clear(); enemies.addAll(loadedEnemies);
             projectiles.clear(); projectiles.addAll(loadedShots);
             enemyShots.clear(); enemyShots.addAll(loadedEnemyShots);
-            // Old checkpoints cannot bypass the mandatory reactor verification.
             if (wave == 4 && !dilutionVerified) {
                 wave = 3; spawned = quota(); waveTimer = 0; spawnTimer = 85;
                 enemies.clear(); projectiles.clear(); enemyShots.clear();
@@ -1297,7 +1276,7 @@ public final class Level3GamePanel extends JPanel {
         if (lab) { clickLab(x, y); repaint(); return; }
         if (journal) { clickJournal(x, y); repaint(); return; }
         if (hudControlsAvailable() && (HUD_PAUSE.contains(x, y) || HUD_EXIT.contains(x, y))) {
-            openPauseMenu(); return; // Same in-game purple menu as Level 1.
+            openPauseMenu(); return;
         }
         for (int i = 0; i < 4; i++) {
             int slotX = HOTBAR_X + i * (HOTBAR_SLOT_W + HOTBAR_GAP);
@@ -1404,8 +1383,6 @@ public final class Level3GamePanel extends JPanel {
         g.dispose();
     }
 
-    // A separate factory environment. Optional custom art is scaled once;
-    // otherwise the complete, layered industrial pixel-art map is drawn in Java.
     private static BufferedImage loadFactoryBackground() {
         String[] candidates = {
             "assets/backgrounds/level3_factory.png",
@@ -1683,10 +1660,7 @@ public final class Level3GamePanel extends JPanel {
                 || keys.contains(KeyEvent.VK_UP) || keys.contains(KeyEvent.VK_DOWN)
                 || keys.contains(KeyEvent.VK_LEFT) || keys.contains(KeyEvent.VK_RIGHT);
         boolean running = moving && keys.contains(KeyEvent.VK_SHIFT);
-        // Show the ORIGINAL run/walk/throw artwork, with no artificial lean,
-        // duplicate silhouettes, added trails, or hurt sprite animations.
         String moveAction = running ? "run" : "walk";
-        // No death or hurt sprites: keep walk/run/throw and tint red on damage.
         String action = moveAction;
         int frame = moving ? ticks / (running ? 5 : 10) : 0;
         String animationFacing = facing;
@@ -1710,8 +1684,6 @@ public final class Level3GamePanel extends JPanel {
         if (sprite != null) {
             drawSprite(g, red ? sprites.red(sprite) : sprite, x, y, 65, 1f, 59);
         } else {
-            // Pixel scientist fallback: lab coat, hair, gloves, boots and a vial.
-            // If damaged, EVERY part flashes solid red (no hurt/death sprites).
             Color flash = new Color(247, 34, 52);
             Color coat = red ? flash : new Color(202, 188, 229);
             Color shirt = red ? flash : new Color(118, 83, 171);
@@ -1751,7 +1723,6 @@ public final class Level3GamePanel extends JPanel {
         g.setColor(new Color(5, 8, 15, 150));
         g.fillOval(x - (boss ? 35 : 20), y - 7, boss ? 70 : 40, 13);
 
-        // A single subtle, fast red glow when the boss is first discovered.
         if (boss && bossAuraTicks > 0) {
             float fade = bossAuraTicks / 36f;
             int pulse = (int) (4 * Math.sin((36 - bossAuraTicks) * 0.45));
@@ -1760,8 +1731,6 @@ public final class Level3GamePanel extends JPanel {
             g.setColor(new Color(238, 75, 94, (int) (85 * fade)));
             g.drawOval(x - 49 - pulse, y - 112 - pulse, 98 + pulse * 2, 114 + pulse * 2);
         }
-        // Explosive zombie clearly telegraphs its charge. The ring is harmless
-        // until the countdown ends, so the player can dodge it.
         if (z.type == 2 && z.charge > 0) {
             int r = 67 + (25 - z.charge) / 2;
             g.setColor(new Color(255, 152, 64, 37));
@@ -1778,7 +1747,6 @@ public final class Level3GamePanel extends JPanel {
         if (sprite != null) {
             drawSprite(g, red ? sprites.red(sprite) : sprite, x, y, boss ? 102 : z.type == 0 ? 75 : 68, 1f);
         } else drawFallbackEnemy(g, z, x, y, red);
-        // Same visual style as Levels 1 and 2, plus a compact boss HP bar.
         if (boss) {
             int barW = 90;
             g.setColor(new Color(24, 16, 34, 220)); g.fillRect(x - barW / 2, y - 118, barW, 7);
@@ -1788,7 +1756,6 @@ public final class Level3GamePanel extends JPanel {
         }
     }
     private BufferedImage fallbackShatterPose(Enemy z) {
-        // If an asset is missing, even the Java fallback breaks into its own pixels.
         BufferedImage fallback = new BufferedImage(190, 170, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = fallback.createGraphics();
         g.translate(95, 154);
@@ -1799,7 +1766,6 @@ public final class Level3GamePanel extends JPanel {
     private void drawDefeated(Graphics2D g, Defeated d) {
         int x = (int) (d.x - camera), y = (int) d.y;
         if (x < -140 || x > W + 140) return;
-        // Instant pixel shatter: pieces scatter outward, drop, and fade in < 0.3s.
         float opacity = Math.max(0f, 1f - d.age / (float) SHATTER_TICKS);
         Graphics2D pieces = (Graphics2D) g.create();
         pieces.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
@@ -1815,7 +1781,6 @@ public final class Level3GamePanel extends JPanel {
     private static void drawSprite(Graphics2D g, BufferedImage img, int centerX, int footY, int height, float alpha) {
         drawSprite(g, img, centerX, footY, height, alpha, height * 2);
     }
-    // Scientist sprite has the same 65px height and 59px max width as Level 1.
     private static void drawSprite(Graphics2D g, BufferedImage img, int centerX, int footY,
                                    int height, float alpha, int maxWidth) {
         int width = Math.max(1, (int) Math.round(height * img.getWidth() / (double) Math.max(1, img.getHeight())));
@@ -1826,8 +1791,6 @@ public final class Level3GamePanel extends JPanel {
         g.setComposite(old);
     }
     private void drawFallbackEnemy(Graphics2D g, Enemy z, int x, int y, boolean red) {
-        // Render the whole fallback to a temporary image so the head, arms,
-        // and legs ALL turn red, not just the body.
         if (red) {
             BufferedImage image = new BufferedImage(190, 170, BufferedImage.TYPE_INT_ARGB);
             Graphics2D fg = image.createGraphics();
@@ -1847,12 +1810,10 @@ public final class Level3GamePanel extends JPanel {
         } else drawFallbackEnemyBase(g, z, x, y);
     }
     private void drawFallbackEnemyBase(Graphics2D g, Enemy z, int x, int y) {
-        // Distinct original pixel silhouettes. All four are drawn without
-        // external assets if the player's sprite PNGs are not present.
         int h = z.type == 3 ? 98 : z.type == 0 ? 73 : 66;
         int top = y - h;
         Color skin = new Color(133, 164, 142);
-        if (z.type == 0) { // TOXIC BRUTE: wide shoulders, waste tank and huge fists.
+        if (z.type == 0) { // TOXIC BRUTE:
             g.setColor(new Color(43, 66, 65)); g.fillRect(x - 19, top + 29, 38, 32);
             g.setColor(new Color(90, 117, 95)); g.fillRect(x - 26, top + 27, 52, 28);
             g.setColor(new Color(45, 76, 69)); g.fillRect(x - 12, top + 54, 11, 19);
@@ -1867,7 +1828,7 @@ public final class Level3GamePanel extends JPanel {
             g.fillRect(x + 4, top + 17, 6, 4);
             g.setColor(new Color(125, 208, 99)); g.fillRect(x - 17, top + 42, 6, 17);
             g.setColor(new Color(217, 180, 73)); g.fillRect(x - 22, top + 40, 44, 5);
-        } else if (z.type == 1) { // VENOM SPITTER: narrow hunched mask and acid sacs.
+        } else if (z.type == 1) { // VENOM SPITTER
             g.setColor(new Color(37, 57, 65)); g.fillRect(x - 9, top + 48, 7, 18);
             g.fillRect(x + 5, top + 48, 7, 18);
             g.setColor(new Color(65, 110, 97)); g.fillRect(x - 15, top + 25, 30, 26);
@@ -1880,7 +1841,7 @@ public final class Level3GamePanel extends JPanel {
             g.setColor(new Color(111, 236, 139)); g.fillRect(x - 8, top + 17, 16, 4);
             g.setColor(new Color(78, 185, 117)); g.fillRect(x + 21, top + 32, 9, 10);
             g.fillRect(x + 24, top + 43, 5, 5);
-        } else if (z.type == 2) { // EXPLOSIVE ZOMBIE: orange reactor core and warning cables.
+        } else if (z.type == 2) { // EXPLOSIVE ZOMBIE
             g.setColor(new Color(57, 52, 65)); g.fillRect(x - 12, top + 47, 9, 19);
             g.fillRect(x + 4, top + 47, 9, 19);
             g.setColor(new Color(91, 78, 78)); g.fillRect(x - 20, top + 23, 40, 27);
@@ -1894,7 +1855,7 @@ public final class Level3GamePanel extends JPanel {
             g.fillRect(x + 4, top + 13, 6, 3);
             g.setColor(new Color(209, 134, 69)); g.fillRect(x - 23, top + 25, 4, 20);
             g.fillRect(x + 19, top + 25, 4, 20);
-        } else { // CHEMICAL ABOMINATION: asymmetrical horns, tanks and violet core.
+        } else { // CHEMICAL ABOMINATION
             g.setColor(new Color(33, 34, 53)); g.fillRect(x - 17, top + 74, 13, 24);
             g.fillRect(x + 5, top + 74, 13, 24);
             g.setColor(new Color(57, 50, 78)); g.fillRect(x - 30, top + 34, 60, 45);
@@ -1944,13 +1905,10 @@ public final class Level3GamePanel extends JPanel {
         int total = 0; for (int n : stabilized) total += n;
         label(g, "STABILIZED  " + total, 735, 61, 11, WHITE, true);
         label(g, "MEDKITS  " + medkits, 846, 61, 10, WHITE, true);
-        // Icon-only controls occupy the top HUD gap, not the battlefield itself.
         if (hudControlsAvailable()) {
             drawHudControl(g, HUD_PAUSE, true, hoverControl == 1);
             drawHudControl(g, HUD_EXIT, false, hoverControl == 2);
         }
-        // Show EVERY crafted potion type, including its individual inventory count.
-        // Selection never consumes a vial; only throwing does.
         hudPanel(g, 14, 461, 539, 65);
         for (int i = 0; i < 4; i++) drawPotionSlot(g, i);
         label(g, "WASD move  |  SHIFT run  |  1-4 select  |  Q switch  |  SPACE throw  |  H heal",
@@ -1965,7 +1923,6 @@ public final class Level3GamePanel extends JPanel {
 
 
     private void drawPotionIcon(Graphics2D g, int x, int y, Color liquid, boolean available) {
-        // Pixel-style vial, drawn in Java so no extra asset is needed.
         Color glass = available ? new Color(225, 218, 244) : new Color(110, 104, 128);
         Color fill = available ? liquid : new Color(80, 75, 94);
         g.setColor(new Color(99, 75, 66)); g.fillRect(x + 7, y - 2, 11, 5); // cork
@@ -2062,7 +2019,7 @@ public final class Level3GamePanel extends JPanel {
                 recognized >= 0 ? new Color(183, 233, 166) : WHITE, true);
         label(g, "FOR: " + NAMES[recognized >= 0 ? recognized : target],
                 565, 392, 10, MUTED, false);
-        // Batch quantity. One mix can make 1, 2, 3 ... MAX potions, never a fixed cap.
+        // Batch quantity
         label(g, "QTY", 566, 422, 11, new Color(245, 207, 155), true);
         button(g, 604, 406, 35, 24, "-", new Color(65, 48, 97));
         label(g, String.valueOf(batchQty), 651, 422, 12, WHITE, true);
@@ -2375,16 +2332,13 @@ public final class Level3GamePanel extends JPanel {
         int n = 0; for (boolean value : values) if (value) n++; return n;
     }
 
-    /** Loads 1-row PNG sprite sheets; falls back to built-in pixel silhouettes. */
+  
     private static final class SpriteLoader {
         private final Map<String, BufferedImage[]> cache = new HashMap<>();
-        // Cache red-tinted frames so hurt flashing does not allocate every tick.
         private final Map<BufferedImage, BufferedImage> redCache = new IdentityHashMap<>();
         private final Set<String> missing = new HashSet<>();
         private final Set<String> missingRunNotices = new HashSet<>();
 
-        // Strong solid-red damage sprite: keep the exact original silhouette,
-        // transparency and pixel edges, but never display a hurt animation.
         BufferedImage red(BufferedImage img) {
             BufferedImage result = redCache.get(img);
             if (result != null) return result;
@@ -2413,7 +2367,6 @@ public final class Level3GamePanel extends JPanel {
             BufferedImage[] frames = load(key, name, action, direction);
             if (frames == null && player && action.equals("run")
                     && missingRunNotices.add(name + ":" + direction)) {
-                // Log only once per direction, never once per animation tick.
                 System.err.println("CHEMION Level 3: RUN sprite not found for " + name
                         + " (" + direction + "). Check assets/characters/<scientist>/run/.");
             }
@@ -2451,8 +2404,6 @@ public final class Level3GamePanel extends JPanel {
             List<File> files = new ArrayList<>();
             findPng(folder, files, 0);
             String dir = norm(direction), act = norm(action), n = norm(name);
-            // Also accept Level 3 PNGs stored directly under the level folder,
-            // or in assets/zombies/level3/<name> instead of assets/enemies/level3.
             if (files.isEmpty() && key.startsWith("enemies/level3/")) {
                 for (String rootName : new String[]{"enemies/level3", "zombies/level3", "level3"}) {
                     File root = new File(assets, rootName);
@@ -2472,7 +2423,6 @@ public final class Level3GamePanel extends JPanel {
                         || filename.endsWith(dir.equals("down") ? "front" : dir.equals("up") ? "back" : dir)
                         || filename.endsWith(dir.equals("down") ? "forward" : dir.equals("up") ? "backward" : dir);
                 if (!matchingDirection) continue;
-                // Support the user's original run sprites in run/, running/ or sprint/.
                 boolean matchingAction = filename.contains(act) || parent.equals(act)
                         || (action.equals("run") && (filename.contains("sprint")
                                 || parent.startsWith("run") || parent.startsWith("sprint")));
@@ -2510,9 +2460,7 @@ public final class Level3GamePanel extends JPanel {
             int w = sheet.getWidth(), h = sheet.getHeight();
             if (w < h * 1.5) return new BufferedImage[] {crop(sheet)};
 
-            // Detect actual frame count from separate sprite silhouettes.
-            // CHEMION assets can contain FOUR or FIVE (or more) poses in one row.
-            // Never hardcode 4: that cuts a 5-pose sheet across two characters.
+
             boolean hasTransparency = false;
             for (int x = 0; x < w && !hasTransparency; x += Math.max(1, w / 60)) {
                 for (int y = 0; y < h; y += Math.max(1, h / 30)) {
@@ -2521,7 +2469,6 @@ public final class Level3GamePanel extends JPanel {
                     }
                 }
             }
-            // Opaque sheets with a plain background can also be segmented.
             int bg = sheet.getRGB(0, 0);
             boolean plainBackground = !hasTransparency
                     && closeColor(bg, sheet.getRGB(w - 1, 0))
@@ -2538,7 +2485,6 @@ public final class Level3GamePanel extends JPanel {
                     if (ink) { occupied[x] = true; break; }
                 }
             }
-            // Reconnect tiny gaps within one pose (e.g., between a hand and coat).
             int bridge = Math.max(2, Math.min(6, h / 28));
             int last = -1;
             for (int x = 0; x < w; x++) if (occupied[x]) {
@@ -2564,7 +2510,6 @@ public final class Level3GamePanel extends JPanel {
                 if (region[1] - region[0] + 1 >= minWidth) poses.add(region);
 
             if (poses.size() >= 2 && poses.size() <= 10) {
-                // Split in the EMPTY SPACE between poses, not at arbitrary quarters.
                 int[] cuts = new int[poses.size() + 1];
                 cuts[0] = 0; cuts[poses.size()] = w;
                 for (int i = 1; i < poses.size(); i++)
@@ -2572,9 +2517,7 @@ public final class Level3GamePanel extends JPanel {
                 return splitAt(sheet, cuts);
             }
 
-            // If a sheet has no usable transparent/solid-color gaps, never draw
-            // the ENTIRE strip as one giant character. Use a conservative grid
-            // fallback, and report it so that irregular sheets can be corrected.
+
             int count = w >= h * 3 ? 4 : 2;
             System.err.println("CHEMION sprite: could not detect frame gaps in "
                     + w + "x" + h + " sheet; using " + count + " equal cells.");
@@ -2597,7 +2540,6 @@ public final class Level3GamePanel extends JPanel {
                 maxW = Math.max(maxW, frames[i].getWidth());
                 maxH = Math.max(maxH, frames[i].getHeight());
             }
-            // All frames use the same canvas dimensions and foot alignment.
             for (int i = 0; i < count; i++) {
                 BufferedImage aligned = new BufferedImage(maxW, maxH, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D g = aligned.createGraphics();

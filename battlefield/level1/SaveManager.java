@@ -10,7 +10,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Properties;
 
-/** One local save slot for CHEMION. Does not depend on the working directory. */
+
 public final class SaveManager {
     private static final Path SAVE_FILE = Paths.get(
         System.getProperty("user.home"), ".chemion-the-last-cure", "save.properties"
@@ -32,7 +32,7 @@ public final class SaveManager {
         return data;
     }
 
-    /** Write via a temporary file to avoid corrupting an existing save. */
+    
     public static synchronized void save(Properties data) throws IOException {
         Files.createDirectories(SAVE_FILE.getParent());
         Path temporary = Files.createTempFile(SAVE_FILE.getParent(), "chemion-", ".tmp");
@@ -55,7 +55,7 @@ public final class SaveManager {
         Files.deleteIfExists(SAVE_FILE);
     }
 
-    /** True only for a resumable run, not a completed level. */
+    
     public static boolean hasSavedLevel1() {
         Properties p = load();
         return "true".equals(p.getProperty("level1.started"))
@@ -70,7 +70,7 @@ public final class SaveManager {
             || highestUnlockedLevel() > 1;
     }
 
-    /** Replay an unlocked level without losing completed-level achievements. */
+    
     public static synchronized void clearLevel1KeepUnlocks() throws IOException {
         Properties p = load();
         for (String key : new java.util.HashSet<String>(p.stringPropertyNames())) {
@@ -90,7 +90,6 @@ public final class SaveManager {
             && "true".equals(load().getProperty("level." + level + ".completed"));
     }
 
-    /** Completing a level unlocks the next; level 1 is always available. */
     public static int highestUnlockedLevel() {
         Properties p = load();
         int highest = 1;

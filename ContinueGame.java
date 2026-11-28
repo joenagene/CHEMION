@@ -7,11 +7,7 @@ import java.util.Comparator;
 import java.util.function.IntConsumer;
 import javax.swing.*;
 
-/**
- * Five-level horizontal carousel for CHEMION.
- * The selected card grows; click arrows, use arrow keys, wheel, or swipe/drag.
- * No extra art files or libraries are required.
- */
+
 public class ContinueGame extends JPanel {
     private static final int DESIGN_W = 1100;
     private static final int DESIGN_H = 620;
@@ -92,7 +88,6 @@ public class ContinueGame extends JPanel {
                 if (RIGHT_ARROW.contains(x, y)) { select(selectedIndex + 1); return; }
                 if (BACK.contains(x, y)) { onBack.run(); return; }
                 if (ACTION.contains(x, y)) { activateSelected(); return; }
-                // Clicking a neighboring card moves it to the center.
                 for (int i = 0; i < 5; i++) {
                     if (cardBounds(i).contains(x, y)) {
                         select(i);
@@ -165,7 +160,6 @@ public class ContinueGame extends JPanel {
         centered(g, "SELECT LEVEL", 550, 65, 29, new Color(222, 179, 255), true);
         centered(g, "SWIPE OR USE  <   >  TO EXPLORE THE FIVE LOCATIONS", 550, 97, 13, MUTED, false);
 
-        // Draw distant cards first, so the focused card is always on top.
         Integer[] order = {0, 1, 2, 3, 4};
         Arrays.sort(order, Comparator.comparingDouble((Integer i) -> Math.abs(i - displayedIndex)).reversed());
         for (int i : order) drawCard(g, i);
@@ -231,7 +225,6 @@ public class ContinueGame extends JPanel {
         g.setColor(new Color(26, 23, 40));
         g.fillRect(x, y + h - 30, w, 30);
 
-        // Distinct, lightweight pixel-art silhouettes for each location.
         for (int j = 0; j < 6; j++) {
             int bw = Math.max(19, w / 6 + (j % 2) * 9);
             int bx = x + j * w / 5 - 10;

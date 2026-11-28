@@ -6,7 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-/** Proposal: knownRecipes, equipmentLevel, researchData; analyzeSample(), mixIngredients(), unlockRecipe(). */
+//knownRecipes, equipmentLevel, researchData; analyzeSample(), mixIngredients(), unlockRecipe(). 
 public class LabSystem {
     private final Map<String, Recipe> recipes = new LinkedHashMap<>();
     private final Set<String> knownRecipes = new LinkedHashSet<>();

@@ -1,6 +1,5 @@
 package game;
 
-/** Proposal: player, enemy, battleState; startBattle(), usePotion(), endBattle(). */
 public class BattleSystem {
     private Scientist player;
     private Zombie enemy;

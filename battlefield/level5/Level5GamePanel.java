@@ -20,7 +20,6 @@ import javax.imageio.ImageIO;
 import javax.swing.*;
 
 public final class Level5GamePanel extends JPanel {
-    // Constants
     private static final int W = 960, H = 540, WORLD = 7200;
 
     private static final int WALK_MIN_Y = 110, WALK_MAX_Y = 1250;

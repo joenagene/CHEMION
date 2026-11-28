@@ -89,7 +89,7 @@ public class LevelTransition extends JPanel {
             ? 0
             : System.currentTimeMillis() - startTime;
 
-        // Black overlay fade-out
+
         float backgroundAlpha = 1f;
 
         if (elapsed >= FADE_START) {
@@ -112,7 +112,7 @@ public class LevelTransition extends JPanel {
         g2.setColor(Color.BLACK);
         g2.fillRect(0, 0, getWidth(), getHeight());
 
-        // Title fade-in and fade-out
+
         float alpha;
 
         if (elapsed < 800) {

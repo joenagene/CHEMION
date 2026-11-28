@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Overall flow coordinator; persistence is injected to preserve existing SaveManager format. */
 public class GameManager {
     @FunctionalInterface public interface SaveAction { void run() throws IOException; }
     private static final GameManager INSTANCE = new GameManager();

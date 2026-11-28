@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Recipe validates all ingredients before removing any inventory items. */
 public class Recipe {
     private final String name, treatmentKey, effect;
     private final int strength, difficulty;

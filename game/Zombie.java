@@ -1,6 +1,5 @@
 package game;
 
-/** Abstract infected enemy; concrete types override treatment response. */
 public abstract class Zombie {
     private final String name, mutationType, resistance, treatmentKey;
     private int health;

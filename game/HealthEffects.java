@@ -18,7 +18,7 @@ public class HealthEffects {
         healStart = System.currentTimeMillis();
     }
 
-    // Update the low-health visual effect
+    // Update the low-health 
     public void update(double hp, double maxHp) {
 
         float targetOpacity = 0f;
@@ -49,7 +49,6 @@ public class HealthEffects {
             }
         }
 
-        // Smooth fade in and fade out
         vignetteOpacity +=
             (targetOpacity - vignetteOpacity) * 0.10f;
 
@@ -58,7 +57,7 @@ public class HealthEffects {
         }
     }
 
-    // Draw red glow around the screen edges
+    //  red glow around the screen edges
     public void drawVignette(Graphics2D g, int width, int height) {
 
         if (vignetteOpacity <= 0f) return;
@@ -116,7 +115,7 @@ public class HealthEffects {
         effect.dispose();
     }
 
-    // Draw a temporary green healing glow
+    // green healing glow
     public void drawHealEffect(
             Graphics2D g, int x, int y, int radius) {
 
@@ -158,7 +157,6 @@ public class HealthEffects {
         effect.dispose();
     }
 
-    // Clear effects when restarting or leaving a level
     public void reset() {
         vignetteOpacity = 0f;
         healStart = -1;

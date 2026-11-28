@@ -79,8 +79,6 @@ public class OutbreakIntro3 extends JPanel {
         });
     }
 
-    // Level 3 begins where the hospital's final shipment records lead.
-    // Preserve the cinematic pacing and mystery of Levels 1 and 2.
     public static OutbreakIntro3 opening(Runnable onFinished) {
         return new OutbreakIntro3(new Scene[] {
             new Scene(
@@ -113,8 +111,6 @@ public class OutbreakIntro3 extends JPanel {
         }, onFinished);
     }
 
-    // Begin this dialogue only after the opening narration finishes.
-    // "Scientist" is resolved by Level 1's existing portrait-based dialogue UI.
     public static String[][] scientistConversation() {
         return new String[][] {
             {
@@ -144,7 +140,6 @@ public class OutbreakIntro3 extends JPanel {
         };
     }
 
-    // One-time narration for each Level 3 infected type's first encounter.
     public static OutbreakIntro3 enemy(String enemyId, Runnable onFinished) {
         if (enemyId == null) return null;
 
@@ -190,7 +185,6 @@ public class OutbreakIntro3 extends JPanel {
         }, onFinished);
     }
 
-    // Conversation after the Level 3 boss is stabilized.
     public static String[][] level3EndingConversation() {
         return new String[][] {
             {
@@ -228,7 +222,6 @@ public class OutbreakIntro3 extends JPanel {
         }, onFinished);
     }
 
-    // Reuse Level 1's existing portrait-based dialogue panel.
     public static class DialoguePanel extends OutbreakIntro.DialoguePanel {
         public DialoguePanel(int scientistIndex, String[][] lines,
                              Runnable onFinished) {

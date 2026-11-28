@@ -79,7 +79,6 @@ public class OutbreakIntro4 extends JPanel {
         });
     }
 
-    // Level 4 follows the factory shipment trail into the sealed facility.
     public static OutbreakIntro4 opening(Runnable onFinished) {
         return new OutbreakIntro4(new Scene[] {
             new Scene(
@@ -118,7 +117,6 @@ public class OutbreakIntro4 extends JPanel {
         };
     }
 
-    // Optional first-encounter cinematics, ready for future Level 4 gameplay.
     public static OutbreakIntro4 enemy(String enemyId, Runnable onFinished) {
         if (enemyId == null) return null;
         String heading, body;
@@ -146,11 +144,9 @@ public class OutbreakIntro4 extends JPanel {
         }, onFinished);
     }
 
-    // Level 4 boss completion: bridge the facility's hidden research to Genesis Laboratory.
     public static String[][] level4EndingConversation() {
         return new String[][] {
             {"Scientist", "The Regenerator is stabilized. I recovered the final encrypted research report."},
-            {"Lab Control", "I'm decoding it now. These experiments were never isolated. The samples were transferred to a site called Genesis Laboratory."},
             {"Scientist", "Genesis? The factory shipments and the hospital trials were all connected to it?"},
             {"Lab Control", "Yes. The facility's records identify Genesis as the central research site. The origin of the outbreak may be there."},
             {"Scientist", "Then that's our final destination. I'll take the recovered data and finish what we started."}
@@ -163,7 +159,6 @@ public class OutbreakIntro4 extends JPanel {
         }, onFinished);
     }
 
-    // Reuse Level 1's existing portrait-based dialogue panel.
     public static class DialoguePanel extends OutbreakIntro.DialoguePanel {
         public DialoguePanel(int scientistIndex, String[][] lines,
                              Runnable onFinished) {
